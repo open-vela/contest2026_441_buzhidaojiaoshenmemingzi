@@ -1,0 +1,4 @@
+interface:
+  display_name: "BK7258 R1 openvela 移植"
+  short_description: "分阶段移植并核验 BK7258 R1 的 openvela 实机能力"
+  default_prompt: "Use $bk7258-openvela-porting to identify the next evidenced BK7258 R1 porting milestone."
