@@ -3,19 +3,40 @@
 
 set -eu
 
-if test "$#" -ne 1; then
-  printf 'Usage: %s /dev/ttyACM0\n' "$0" >&2
+if test "$#" -ne 3 || test "$3" != "--confirm"; then
+  printf 'Usage: %s /dev/ttyUSB0 path/to/all-app-nuttx.bin --confirm\n' "$0" >&2
   exit 2
 fi
 
-repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-workspace_dir=$(dirname "$repo_dir")
 port=$1
+image=$2
 
-if ! test -f "$workspace_dir/nuttx/nuttx.bin"; then
-  printf 'Missing %s/nuttx/nuttx.bin; build the firmware first.\n' "$workspace_dir" >&2
+case "$port" in
+  /dev/ttyUSB[0-9]*) port_number=${port#/dev/ttyUSB} ;;
+  [0-9]*) port_number=$port ;;
+  *)
+    printf 'Unsupported port: %s (use /dev/ttyUSB<N> or <N>).\n' "$port" >&2
+    exit 2
+    ;;
+esac
+
+case "$port_number" in
+  ''|*[!0-9]*)
+    printf 'Invalid Beken port number derived from: %s\n' "$port" >&2
+    exit 2
+    ;;
+esac
+
+if ! test -f "$image"; then
+  printf 'Missing packed BK7258 image: %s\n' "$image" >&2
   exit 1
 fi
 
-cd "$workspace_dir/nuttx"
-exec make flash ESPTOOL_PORT="$port" ESPTOOL_BINDIR=./
+if ! command -v bk_loader >/dev/null 2>&1; then
+  printf 'Missing bk_loader. Install the Beken flashing tool documented by the BSP.\n' >&2
+  exit 1
+fi
+
+printf 'Flashing will overwrite the selected device: %s\n' "$port"
+printf 'Image: %s\n' "$image"
+exec bk_loader download -p "$port_number" -b 1500000 -i "$image"

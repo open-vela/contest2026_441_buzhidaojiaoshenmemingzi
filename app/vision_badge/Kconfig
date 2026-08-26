@@ -2,7 +2,7 @@ config LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE
 	bool "Contest 2026 team 441 vision assistance badge"
 	default n
 	---help---
-		Enable the ESP32-S3-EYE vision assistance badge application skeleton.
+		Enable the BK7258 R1 vision assistance badge application skeleton.
 		The initial version provides module contracts and diagnostics. Camera,
 		cloud vision, audio and vibration backends are completed milestone by
 		milestone and must not be treated as verified by enabling this option.

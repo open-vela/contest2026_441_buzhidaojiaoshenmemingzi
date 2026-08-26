@@ -20,18 +20,18 @@ check_command git
 check_command repo
 check_command python3
 
-if command -v xtensa-esp32s3-elf-gcc >/dev/null 2>&1 ||
-   test -x "$workspace_dir/prebuilts/gcc/linux-x86_64/xtensa-esp32s3-elf/bin/xtensa-esp32s3-elf-gcc"; then
-  printf '[ok]   xtensa-esp32s3-elf-gcc\n'
+if command -v arm-none-eabi-gcc >/dev/null 2>&1 ||
+   test -x "$workspace_dir/prebuilts/gcc/linux-x86_64/arm-none-eabi/bin/arm-none-eabi-gcc"; then
+  printf '[ok]   arm-none-eabi-gcc\n'
 else
-  printf '[miss] xtensa-esp32s3-elf-gcc\n'
+  printf '[miss] arm-none-eabi-gcc\n'
   failed=1
 fi
 
 for path in \
   "$workspace_dir/build.sh" \
   "$workspace_dir/nuttx" \
-  "$workspace_dir/vendor/espressif/boards/esp32s3/esp32s3-eye" \
+  "$workspace_dir/vendor/beken/boards/bk7258/bk7258-devkit" \
   "$workspace_dir/packages/demos/contest2026_441_vision_badge"; do
   if test -e "$path"; then
     printf '[ok]   %s\n' "$path"
@@ -46,4 +46,4 @@ if test "$failed" -ne 0; then
   exit 1
 fi
 
-printf '\nESP32-S3-EYE openvela workspace is ready for build.\n'
+printf '\nBK7258 openvela workspace is ready for an experimental build.\n'

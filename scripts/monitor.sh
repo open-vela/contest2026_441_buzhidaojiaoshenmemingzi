@@ -4,7 +4,7 @@
 set -eu
 
 if test "$#" -ne 1; then
-  printf 'Usage: %s /dev/ttyACM0\n' "$0" >&2
+  printf 'Usage: %s /dev/ttyUSB0\n' "$0" >&2
   exit 2
 fi
 

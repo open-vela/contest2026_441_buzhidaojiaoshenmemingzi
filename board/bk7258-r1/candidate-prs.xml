@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <!-- Optional local-manifest template for an isolated experiment only.
+       Unmerged candidates, not a verified R1 BSP. Does not select team code.
+       Do not combine with existing overrides for these same projects. -->
+  <extend-project name="nuttx"
+                  revision="8dbe907a8461c3b6b5ceddf3c0fcf7a690df1ffd"
+                  upstream="refs/pull/332/head"/>
+  <extend-project name="vendor_beken"
+                  revision="f46d0576b539d2fa48c8ea308cb2044d5f227f34"
+                  upstream="refs/pull/2/head"/>
+</manifest>

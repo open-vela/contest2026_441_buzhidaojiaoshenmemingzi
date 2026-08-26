@@ -40,7 +40,7 @@ static int vision_badge_status(void)
   audio_service_probe(&audio);
 
   printf("vision_badge foundation 0.1.0\n");
-  printf("board: ESP32-S3-EYE / openvela\n");
+  printf("board: BK7258 R1 / openvela\n");
   vision_badge_print_probe("camera", CONFIG_CONTEST2026_441_VISION_BADGE_CAMERA_DEVPATH,
                            &camera);
   vision_badge_print_probe("audio", CONFIG_CONTEST2026_441_VISION_BADGE_AUDIO_DEVPATH,
