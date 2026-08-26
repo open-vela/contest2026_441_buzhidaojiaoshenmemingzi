@@ -8,6 +8,10 @@ cmake_out/
 *.hex
 *.map
 
+# Python audit/test caches
+__pycache__/
+*.py[cod]
+
 # Local credentials and machine-specific settings
 .env
 .env.*
