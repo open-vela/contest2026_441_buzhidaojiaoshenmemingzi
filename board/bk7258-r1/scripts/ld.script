@@ -1,0 +1,221 @@
+/****************************************************************************
+ * vendor/beken/boards/bk7258/bk7258-r1/scripts/ld.script
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.  The
+ * ASF licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the
+ * License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ *
+ ****************************************************************************/
+/****************************************************************************
+ * 文件角色：链接脚本（程序的"摆位图"）
+ *
+ * 通俗理解：编译完一堆 .o 文件后，链接器要把它们拼成一个完整的可执行文件。
+ * 这个脚本告诉链接器"每个部分放在内存的哪个位置"。
+ *
+ * 就像搬家时的"房间分配图"：代码放书房（Flash），数据放卧室（RAM）。
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 启动流程与链接脚本的关系
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ *   上电 → bootloader 读 Flash 0x02010000 处的 32 字节向量表
+ *                                           ↑
+ *                                     .vectors 段必须放在这里
+ *     → 读 SP 值（_vectors[0]）→ 设栈指针
+ *     → 读 PC 值（_vectors[1]）→ 跳转到 __start()
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 内存布局（R1 保守配置）
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ *   Flash (XIP, 只读执行):
+ *   0x02010000 ┌──────────────┐ ← 向量表 .vectors（bootloader 找这里）
+ *              │  .text        │   代码段（所有函数）
+ *   0x02010004 │  .rodata      │   只读数据（字符串常量）
+ *              │  ...          │
+ *              │  _eronly      │ ← .data 的加载地址（LMA，在 Flash 中）
+ *   ─ ─ ─ ─ ─ ├─ ─ ─ ─ ─ ─ ─ ┤
+ *   RAM (SRAM, 读写):
+ *   0x28010000 ┌──────────────┐ ← .data 的虚拟地址（VMA，运行时在 RAM 中）
+ *              │  .data        │   有初值的全局变量
+ *              │  _edata       │
+ *              ├──────────────┤
+ *              │  .bss         │   无初值的全局变量（启动时清零）
+ *              │  _ebss        │
+ *              ├──────────────┤
+ *              │  IDLE 栈      │   空闲任务栈
+ *              ├──────────────┤ ← g_idle_topstack（堆从这里开始）
+ *              │  HEAP         │   malloc 从这里分配
+ *   0x28064000 └──────────────┘
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 关键符号（启动代码 bk7258_start.c 依赖这些符号）
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ *   _eronly  : .data 段的加载地址（LMA）= Flash 中 .text 之后的地址
+ *              启动时 bk7258_cstart 把 _eronly 处的数据拷贝到 _sdata
+ *   _sdata   : .data 段在 RAM 中的起始地址（VMA）
+ *   _edata   : .data 段在 RAM 中的结束地址
+ *   _sbss    : .bss 段在 RAM 中的起始地址（启动时清零）
+ *   _ebss    : .bss 段在 RAM 中的结束地址
+ *   _vectors : 向量表地址（在 .text 段最前面，即 Flash 0x02010000）
+ *
+ * 参考：bk7258_start.c（使用 _eronly/_sdata/_edata/_sbss/_ebss）
+ *       include/board.h（BOARD_FLASH_BASE/BOARD_SRAM_BASE 与这里呼应）
+ *       tools/repack.py（打包工具，nuttx.bin 放在 app 分区的 0x11000 偏移处）
+ ****************************************************************************/
+
+/* R1 milestone 1: openvela runs on physical CPU0, which is the communication
+ * processor (CP) in Beken's AP/CP terminology.  CPU1 and CPU2 (the AP side)
+ * are not started by this image.
+ *
+ * Loaded by the Beken bootloader: the R1 app partition starts at physical
+ * flash offset 0x11000.  The 34/32 CRC-decoded XIP view starts at
+ * 0x02010000; the bootloader reads the initial SP and reset vector from the
+ * vector table at 0x02010000 and jumps (no extra image header; CPU clock,
+ * XIP and UART0 are already configured by the bootloader).
+ *
+ * This conservative RAM/Flash window is inherited from the public BK7258
+ * bring-up and must be confirmed on R1 hardware before being enlarged:
+ *   FLASH (XIP) : 0x02010000, 0x140000 (1280K) -- app partition space;
+ *                 .vectors must sit at 0x02010000
+ *   RAM         : 0x28010000, 0x54000  (336K)  -- .data(VMA)/.bss/heap
+ *
+ * Do not infer that all 640 KiB shared SRAM is available to CPU0.  Secure
+ * firmware, boot hand-off state and later AP work can reserve portions.
+ */
+
+MEMORY
+{
+    /* Flash：XIP（原地执行），代码可以直接在 Flash 里运行，不需要拷到 RAM */
+    flash (rx)  : ORIGIN = 0x02010000, LENGTH = 0x140000   /* 1280KB */
+    /* SRAM：读写，.data/.bss/.heap 全部放在这里 */
+    sram  (rwx) : ORIGIN = 0x28010000, LENGTH = 0x54000    /* 336KB */
+}
+
+OUTPUT_ARCH(arm)        /* 目标架构：ARM */
+ENTRY(__start)          /* 入口点：__start 函数（定义在 bk7258_start.c） */
+EXTERN(_vectors)        /* 强制链接 _vectors 符号（定义在 arm_vectors.c） */
+SECTIONS
+{
+    /* ═══════════════════════════════════════════════════════════════════════
+     * DISCARD：丢弃这些段，不放入最终文件
+     *
+     * ⚠️ .note.gnu.build-id 必须丢弃！否则它会占据 Flash 0x02010000 的位置，
+     * 把向量表往后推，导致 bootloader 读到错误的 SP 和复位向量 → 死机。
+     * ═══════════════════════════════════════════════════════════════════════ */
+    /DISCARD/ :
+    {
+        *(.note.gnu.build-id)
+        *(.note.GNU-stack)
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+     * .text 段：代码 + 向量表 + 只读数据，全部放在 Flash 里
+     *
+     * KEEP(*(.vectors)) 确保向量表在最前面（0x02010000），
+     * 这样 bootloader 才能找到 SP 和复位向量。
+     * ═══════════════════════════════════════════════════════════════════════ */
+    .text : ALIGN(4)
+    {
+        _stext = ABSOLUTE(.);      /* 代码段起始地址 */
+        KEEP(*(.vectors))          /* 向量表必须在最前面！ */
+        *(.text .text.*)           /* 所有 .c 文件编译出的函数 */
+        *(.fixup)
+        *(.gnu.warning)
+        *(.rodata .rodata.*)       /* 只读数据（如 "hello world" 字符串） */
+        *(.gnu.linkonce.t.*)
+        *(.glue_7)
+        *(.glue_7t)
+        *(.got)
+        *(.gcc_except_table)
+        *(.gnu.linkonce.r.*)
+        _etext = ABSOLUTE(.);      /* 代码段结束地址 */
+    } > flash
+
+    .init_section : ALIGN(4)
+    {
+        _sinit = ABSOLUTE(.);
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*)))
+        KEEP(*(.init_array EXCLUDE_FILE(*crtbegin.o *crtbegin?.o *crtend.o *crtend?.o) .ctors))
+        _einit = ABSOLUTE(.);
+    } > flash
+
+    .ARM.extab : ALIGN(4)
+    {
+        *(.ARM.extab*)
+    } > flash
+
+    __exidx_start = ABSOLUTE(.);
+    .ARM.exidx : ALIGN(4)
+    {
+        *(.ARM.exidx*)
+    } > flash
+    __exidx_end = ABSOLUTE(.);
+
+    _eronly = ABSOLUTE(.);       /* ⚠️ 关键符号：.data 的加载地址（LMA，在 Flash 中） */
+                                   /* 启动时 bk7258_cstart 从 _eronly 读取初始值，拷贝到 _sdata */
+
+    /* ═══════════════════════════════════════════════════════════════════════
+     * .data 段：有初值的全局变量
+     *
+     * "> sram AT > flash" 的含义：
+     *   - 运行时地址（VMA）在 SRAM 中（0x28010000 开始）
+     *   - 初始值存储地址（LMA）在 Flash 中（_eronly 位置）
+     *
+     *   通俗理解：变量 int x = 5 的初始值 5 存在 Flash 里（省电），
+     *   但程序运行时 x 这个变量在 RAM 里（读写快），启动时把 5 从 Flash 拷到 RAM。
+     * ═══════════════════════════════════════════════════════════════════════ */
+    .data : ALIGN(4)
+    {
+        _sdata = ABSOLUTE(.);      /* .data 在 RAM 中的起始地址 */
+        *(.data .data.*)
+        *(.gnu.linkonce.d.*)
+        CONSTRUCTORS
+        . = ALIGN(4);
+        _edata = ABSOLUTE(.);      /* .data 在 RAM 中的结束地址 */
+    } > sram AT > flash
+
+    /* ═══════════════════════════════════════════════════════════════════════
+     * .bss 段：无初值的全局变量
+     *
+     * 只放在 SRAM 中，不占用 Flash 空间（因为没有初始值需要存）。
+     * C 标准规定无初值的全局变量默认是 0，启动时 bk7258_cstart 遍历 _sbss 到
+     * _ebss 全部清零（因为 RAM 上电后是随机值）。
+     * ═══════════════════════════════════════════════════════════════════════ */
+    .bss : ALIGN(4)
+    {
+        _sbss = ABSOLUTE(.);       /* .bss 在 RAM 中的起始地址 */
+        *(.bss .bss.*)
+        *(.gnu.linkonce.b.*)
+        *(COMMON)
+        . = ALIGN(4);
+        _ebss = ABSOLUTE(.);       /* .bss 在 RAM 中的结束地址，g_idle_topstack 基于此 */
+    } > sram
+
+    /* Stabs debugging sections */
+
+    .stab 0 : { *(.stab) }
+    .stabstr 0 : { *(.stabstr) }
+    .stab.excl 0 : { *(.stab.excl) }
+    .stab.exclstr 0 : { *(.stab.exclstr) }
+    .stab.index 0 : { *(.stab.index) }
+    .stab.indexstr 0 : { *(.stab.indexstr) }
+    .comment 0 : { *(.comment) }
+    .debug_abbrev 0 : { *(.debug_abbrev) }
+    .debug_info 0 : { *(.debug_info) }
+    .debug_line 0 : { *(.debug_line) }
+    .debug_pubnames 0 : { *(.debug_pubnames) }
+    .debug_aranges 0 : { *(.debug_aranges) }
+}

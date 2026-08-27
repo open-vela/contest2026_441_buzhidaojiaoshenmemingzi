@@ -1,0 +1,9 @@
+# repack.py runtime work directory: recreated on every run.
+# Contains the Beken bootloader, NuttX CPU0 payload and generated image.
+tools/bk_repack_work/
+
+# Common temporaries / build artifacts
+*.pyc
+__pycache__/
+*.o
+*.elf
