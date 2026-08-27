@@ -22,6 +22,8 @@
 - [vendor_beken PR #2](https://github.com/open-vela/vendor_beken/pull/2)
 - [Agora BK7258 示例分支](https://github.com/AgoraIO-Community/Conversational-AI-IOT-Sample/tree/bk7258/v2.0.1)
 - [Beken AI solution](https://github.com/bekencorp/bk_solution_ai)
+- [本项目：BK7258 公开参考仓盘点](../../../../docs/BK7258公开参考仓盘点.md)
+- [本项目：比赛期间的私密开发与公开提交策略](../../../../docs/PRIVATE_DEVELOPMENT_WORKFLOW.md)
 - [官方 NuttX 驱动开发 skill](https://github.com/open-vela/.claude/tree/dev-ai-contest-2026/skills/nuttx-driver-development)
 - [官方 openvela 构建 skill](https://github.com/open-vela/.claude/tree/dev-ai-contest-2026/skills/openvela-build)
 - [官方 PCM 音频 skill](https://github.com/open-vela/.claude/tree/dev-ai-contest-2026/skills/pcm-audio)
@@ -44,7 +46,7 @@
 
 本 skill 的工作方式参考官方 `nuttx-driver-development`（主）、`openvela-build`、`pcm-audio`（辅）；这里是项目化整理，不是这些上游 skills 的完整复制，也不自动安装或执行它们。
 
-本次阅读的官方 skills 仓库快照为 `fa2ead7db669912bce49fb04e9876505b5455853`。本项目 PR 版本复核记录在 `docs/progress/BK7258基线快照.md`（相对项目根目录）；文档中的历史评估不能自动适用于新的 PR 头提交。
+本次阅读的官方 skills 仓库快照为 `fa2ead7db669912bce49fb04e9876505b5455853`。本项目 PR 版本复核记录在 `docs/progress/BK7258基线快照.md`，公开队伍仓的固定提交、证据等级和复用顺序记录在 `docs/BK7258公开参考仓盘点.md`（均相对项目根目录）；文档中的历史评估不能自动适用于新的 PR 或队伍仓头提交。
 
 1. 查询 PR 是否仍开放、基分支和最新头提交。
 2. 记录仓库、分支、提交哈希、查询日期和是否发生强推。
