@@ -31,7 +31,7 @@ fi
 for path in \
   "$workspace_dir/build.sh" \
   "$workspace_dir/nuttx" \
-  "$workspace_dir/vendor/beken/boards/bk7258/bk7258-devkit" \
+  "$workspace_dir/vendor/beken/boards/bk7258/bk7258-r1" \
   "$workspace_dir/packages/demos/contest2026_441_vision_badge"; do
   if test -e "$path"; then
     printf '[ok]   %s\n' "$path"
@@ -46,4 +46,6 @@ if test "$failed" -ne 0; then
   exit 1
 fi
 
-printf '\nBK7258 openvela workspace is ready for an experimental build.\n'
+"$repo_dir/scripts/sync-openvela-port.sh" --check "$workspace_dir"
+
+printf '\nBK7258 R1 openvela workspace is synchronized and ready for an experimental build.\n'

@@ -10,7 +10,7 @@
 
   <project path="contest2026_441_buzhidaojiaoshenmemingzi" name="contest2026_441_buzhidaojiaoshenmemingzi">
     <linkfile src="app/vision_badge" dest="packages/demos/contest2026_441_vision_badge"/>
-    <linkfile src="board/bk7258-r1/configs/contest2026_441_vision_badge"
-              dest="vendor/beken/boards/bk7258/bk7258-devkit/configs/contest2026_441_vision_badge"/>
+    <linkfile src="board/bk7258-r1"
+              dest="vendor/beken/boards/bk7258/bk7258-r1"/>
   </project>
 </manifest>
