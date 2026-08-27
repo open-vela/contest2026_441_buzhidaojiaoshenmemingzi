@@ -8,12 +8,13 @@
 MiMo 多模态服务，识别入口、门牌、站点标识和公共服务设施，再通过语音或
 振动反馈关键信息。
 
-当前目标为 **BK7258 R1**。截至 2026-08-26，独立 Ubuntu 工作区已完成
-公开 `bk7258-devkit:nsh` 与队伍 `vision_badge` 两套 ARM 固件构建；应用后端仍有
-`-ENOSYS` 占位。开发板尚未到达，没有 R1 启动或外设实机结果。
+当前目标为 **BK7258 R1**。截至 2026-08-27，独立 Ubuntu 工作区已建立本队
+`bk7258-r1` 板级目录，完成最小 CPU0 + UART0 + NSH 固件构建及 CPU0-only
+镜像打包；应用后端仍有 `-ENOSYS` 占位。开发板尚未到达，没有 R1 启动、
+NSH 响应或外设实机结果。
 
-`bk7258-devkit` 是当前借用的公开 BSP 名称，**不代表已确认与 R1 完全兼容**。
-官方仍将套件列为待适配，两份候选 PR 尚未合并。详见
+本队 R1 目录以公开候选 BK7258 实现为基线，但**不代表已确认与 R1 完全兼容**。
+官方仍将套件列为待适配，两份依赖 PR 尚未合并。详见
 [板卡差异与源码入口](board/bk7258-r1/README.md)和[构建验证](docs/progress/构建验证-20260826.md)。
 
 ## 一、硬件与工作边界
@@ -54,7 +55,8 @@ R1 套件集成 BK7258、DVP 摄像头、双麦与本地 AEC、双屏、触摸�
 
 ```text
 ├── app/vision_badge/       # 原生应用、服务接口和闭环状态机
-├── board/bk7258-r1/        # 队伍配置、上游依赖与使用边界
+├── board/bk7258-r1/        # 本队 R1 板级源码、两套配置与打包工具
+├── porting/nuttx/          # 本队维护的 BK7258 芯片层注释镜像
 ├── docs/                   # 调研、移植计划、架构、预算、验收与测试
 ├── logs/                   # 按大赛规范导出的 AI Coding 日志
 ├── scripts/                # 环境检查、构建、烧录、串口监视
@@ -72,19 +74,19 @@ R1 套件集成 BK7258、DVP 摄像头、双麦与本地 AEC、双屏、触摸�
 - NuttX PR #332：`8dbe907a8461c3b6b5ceddf3c0fcf7a690df1ffd`；
 - vendor_beken PR #2：`f46d0576b539d2fa48c8ea308cb2044d5f227f34`。
 
-先运行只读检查，再依次构建两套配置：
+先确认本队源码与完整工作区一致，再构建当前主线 NSH：
 
 ```bash
 cd /home/alientek/openvela
 bash contest2026_441_buzhidaojiaoshenmemingzi/scripts/check-env.sh
-./build.sh vendor/beken/boards/bk7258/bk7258-devkit/configs/nsh/ --cmake -j2
-bash contest2026_441_buzhidaojiaoshenmemingzi/scripts/build.sh -j2
+bash contest2026_441_buzhidaojiaoshenmemingzi/scripts/sync-openvela-port.sh --check
+bash contest2026_441_buzhidaojiaoshenmemingzi/scripts/build.sh nsh -j2
 ```
 
-产物分别位于 `cmake_out/bk7258-devkit_nsh/` 和
-`cmake_out/bk7258-devkit_contest2026_441_vision_badge/`，包含 `nuttx`（ELF）、
-`nuttx.bin`、`nuttx.hex` 和 `System.map`。重复执行通常是增量构建，不等于一次新的
-干净构建。实际固件编译器为预编译 `arm-none-eabi-gcc 13.4.0`，不是主机 GCC。
+产物位于 `cmake_out/bk7258-r1_nsh/`，包含 `nuttx`（ELF）、`nuttx.bin`、
+`nuttx.hex` 和 `System.map`。重复执行通常是增量构建，不等于一次新的干净构建。
+实际固件编译器为预编译 `arm-none-eabi-gcc 13.4.0`，不是主机 GCC。等 NSH
+实机通过后，再用 `scripts/build.sh app -j2` 构建包含应用的完整固件。
 
 主机侧回归不需要开发板，也不会调用真实模型：
 
@@ -95,7 +97,7 @@ bash scripts/test-host.sh
 
 ### 2. 新建工作区时的依赖说明
 
-以下是大赛基础拉取命令，**不是当前 BK7258 未提交快照的一键复现命令**：
+以下是大赛基础拉取命令；BK7258 公共候选提交仍需按本仓固定版本选择：
 
 ```bash
 repo init -u https://github.com/open-vela/contest2026_441_buzhidaojiaoshenmemingzi \
@@ -116,7 +118,10 @@ repo sync -c -j4
 manifest 会映射：
 
 - `app/vision_badge` → `packages/demos/contest2026_441_vision_badge`
-- 队伍配置 → `vendor/beken/boards/bk7258/bk7258-devkit/configs/contest2026_441_vision_badge`
+- `board/bk7258-r1` → `vendor/beken/boards/bk7258/bk7258-r1`
+
+芯片层目标目录属于 NuttX 项目，不能用整目录链接覆盖。仓库只维护有意修改的
+11 个文件，并由 `scripts/sync-openvela-port.sh` 比较、安装或采集。
 
 构建脚本检查本地 BSP 和链接配置是否存在，不查询 PR 是否已合并。选定配套
 候选源码后可以实验构建；缺少 BSP 时会明确退出。队伍 defconfig 是候选基线，
@@ -125,7 +130,9 @@ R1 引脚和内存布局核对后，应通过配置工具及 `savedefconfig` 更
 ### 3. 打包、烧录与串口
 
 `nuttx.bin` 不能直接烧录；需要按 BK7258 分区和线性 CRC 规则打包为完整镜像。
-打包流程尚待与最终上游 BSP 固定，烧录脚本只接收已审核的完整镜像：
+当前 `board/bk7258-r1/tools/repack.py` 可利用本地 AIDK bootloader 与 Beken
+packager 生成 CPU0-only 待审镜像。它不会烧写；分区和恢复流程仍待 R1 实机核对。
+烧录脚本只接收已审核的完整镜像：
 
 ```bash
 bash scripts/flash.sh /dev/ttyUSB0 path/to/all-app-nuttx.bin --confirm
@@ -146,9 +153,9 @@ vision_badge selftest
 | 项目 | 状态 | 说明 |
 | --- | --- | --- |
 | BK7258 公开资料与移植案例 | 已调研 | 找到 NuttX PR #332、vendor_beken PR #2 和声网/博通示例 |
-| BK7258 R1 队伍配置 | 候选配置构建通过 | 借用 devkit BSP，R1 硬件匹配仍待核对 |
+| BK7258 R1 板级目录 | 最小 NSH 构建与打包通过 | 本队独立目录；R1 硬件匹配仍待核对 |
 | 应用构建接入与服务接口 | 主机回归及 ARM 链接通过 | 内置命令已注册；硬件/云端后端仍待实现 |
-| CPU0 + UART0 + NSH | 本队已构建，未上板 | 作者报告 DevKit 实板通过，不替代本队 R1 证据 |
+| CPU0 + UART0 + NSH | 本队已构建和打包，未上板 | 公开候选作者的实板结果不替代本队 R1 证据 |
 | PSRAM、单屏、双麦 | 公开实验参考 | 当前最小配置的系统堆仍使用 SRAM；未证明 R1 可用 |
 | Wi-Fi、DVP Camera、完整音频与双屏 | 待适配 | 是当前平台主路径 |
 | M1～M10 应用闭环 | 待真机逐项验证 | 以测试证据更新状态 |
