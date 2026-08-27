@@ -23,7 +23,6 @@
 - [Agora BK7258 示例分支](https://github.com/AgoraIO-Community/Conversational-AI-IOT-Sample/tree/bk7258/v2.0.1)
 - [Beken AI solution](https://github.com/bekencorp/bk_solution_ai)
 - [本项目：BK7258 公开参考仓盘点](../../../../docs/BK7258公开参考仓盘点.md)
-- [本项目：比赛期间的私密开发与公开提交策略](../../../../docs/PRIVATE_DEVELOPMENT_WORKFLOW.md)
 - [官方 NuttX 驱动开发 skill](https://github.com/open-vela/.claude/tree/dev-ai-contest-2026/skills/nuttx-driver-development)
 - [官方 openvela 构建 skill](https://github.com/open-vela/.claude/tree/dev-ai-contest-2026/skills/openvela-build)
 - [官方 PCM 音频 skill](https://github.com/open-vela/.claude/tree/dev-ai-contest-2026/skills/pcm-audio)
