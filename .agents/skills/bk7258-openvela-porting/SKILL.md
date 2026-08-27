@@ -1,6 +1,6 @@
 ---
 name: bk7258-openvela-porting
-description: Port BK7258 R1 to openvela/NuttX and review vision_badge hardware capability evidence. Use for R1 bring-up, driver integration, public-port evaluation, and capability audits; not generic ARMINO/FreeRTOS apps.
+description: Port BK7258 R1 to openvela/NuttX, synchronize the team-owned board/chip overlays, and review vision_badge hardware evidence. Use for R1 bring-up, driver integration, public-port evaluation, reproducible builds, and capability audits; not generic ARMINO/FreeRTOS apps.
 ---
 
 # BK7258 R1 openvela 移植
@@ -11,6 +11,7 @@ description: Port BK7258 R1 to openvela/NuttX and review vision_badge hardware c
 
 - 开始前阅读 [references/source-map.md](references/source-map.md)，确认资料权威级别和当前基线。
 - 宣称能力落地前阅读 [references/evidence-gates.md](references/evidence-gates.md)。
+- 在完整工作区构建前运行 `bash scripts/sync-openvela-port.sh --check`。队伍仓的 `board/bk7258-r1/` 是板级来源；`porting/nuttx/arch/arm/src/bk7258/` 是芯片层维护镜像。只有明确需要时才使用 `--install` 或 `--capture`，随后检查 Git diff。
 - 审查本项目时运行 `python scripts/audit_project.py <项目根目录> --json`（脚本路径相对本 skill），再人工核对运行证据。退出 2 表示审查输入不完整，不是“没有问题”。
 - 新驱动优先沿用 NuttX/openvela 子系统骨架；仅将目标硬件常量和必要的底层适配带入板级代码。
 
@@ -23,6 +24,7 @@ description: Port BK7258 R1 to openvela/NuttX and review vision_badge hardware c
 5. 驱动架构参考 NuttX 同类实现，寄存器、引脚和时序常量参考目标板权威资料。
 6. 明确区分：规划、接口占位、实现存在、构建验证、R1 实机验证、能力落地。100 帧、10 次冷启动等是本项目自定测试目标，不是大赛统一强制指标；具体阶段可以按依赖并行。
 7. 不编造构建、烧录和运行结果；保存命令、版本、哈希、原始日志及失败样本。
+8. 不把整个公共 NuttX 仓复制进队伍仓；只维护有意修改的镜像文件，并固定其上游基线。注释变成功能改动时必须明确升级状态和验证要求。
 
 ## 推进顺序
 

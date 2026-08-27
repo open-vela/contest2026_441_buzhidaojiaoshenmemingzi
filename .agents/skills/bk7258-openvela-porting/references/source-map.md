@@ -26,6 +26,20 @@
 - [官方 openvela 构建 skill](https://github.com/open-vela/.claude/tree/dev-ai-contest-2026/skills/openvela-build)
 - [官方 PCM 音频 skill](https://github.com/open-vela/.claude/tree/dev-ai-contest-2026/skills/pcm-audio)
 
+## 本项目源码所有权
+
+- `board/bk7258-r1/`：本队 R1 板级源码，是工作区
+  `vendor/beken/boards/bk7258/bk7258-r1/` 的来源。
+- `porting/nuttx/arch/arm/src/bk7258/`：本队维护的芯片层文件镜像；当前基于
+  `8dbe907a8461c3b6b5ceddf3c0fcf7a690df1ffd`，仅增加学习注释。
+- `app/vision_badge/`：本队应用源码；不得直接依赖 ARMINO 私有应用接口。
+- `beken_reference/`：只存在于本机完整工作区的厂商 SDK/手册参考，不进入比赛
+  仓库，也不因本地存在而成为已验证的 OpenVela 能力。
+
+构建前使用 `scripts/sync-openvela-port.sh --check` 证明队伍仓和完整工作区一致。
+若在工作区底层源码中学习和修改，使用 `--capture` 采集后必须审查差异；若从
+队伍仓恢复工作区，使用 `--install`。同步动作不是构建或实机证据。
+
 ## 使用公开 PR 前
 
 本 skill 的工作方式参考官方 `nuttx-driver-development`（主）、`openvela-build`、`pcm-audio`（辅）；这里是项目化整理，不是这些上游 skills 的完整复制，也不自动安装或执行它们。

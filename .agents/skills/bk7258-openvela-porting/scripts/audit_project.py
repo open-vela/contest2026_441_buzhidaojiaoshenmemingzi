@@ -12,7 +12,11 @@ import sys
 CODE_SUFFIXES = {'.c', '.h', '.cpp', '.cc', '.cxx'}
 TRIVIA = re.compile(r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'', re.S)
 ENOSYS = re.compile(r'\bENOSYS\b')
-GRAPHICS_API = re.compile(r'\b(?:lv|lcd|nx)_[A-Za-z0-9_]+\s*\(')
+GRAPHICS_API = re.compile(
+    r'\b(?:lv_[A-Za-z0-9_]+|lcd(?:dev)?_[A-Za-z0-9_]+|'
+    r'nx_(?:open|close|connect|disconnect|requestbkgd|releasebkgd|'
+    r'constructwindow|openwindow|closewindow|setposition|setsize|bitmap|fill)|'
+    r'nxtk_[A-Za-z0-9_]+|nxmu_[A-Za-z0-9_]+)\s*\(')
 GRAPHICS_CONFIG = re.compile(
     r'^\s*CONFIG_(?:GRAPHICS|LCD|LVGL)(?:_[A-Z0-9_]+)?=(?:y|m)\s*$', re.M)
 

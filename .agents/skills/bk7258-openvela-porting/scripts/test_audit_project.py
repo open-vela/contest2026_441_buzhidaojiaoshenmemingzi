@@ -44,6 +44,11 @@ class AuditTests(unittest.TestCase):
         result = module.audit(self.root)['capabilities']['graphics']
         self.assertEqual(result['evidence'][0]['line'], 3)
 
+    def test_nx_filesystem_api_is_not_graphics(self):
+        self.write('board/bringup.c', 'int f(void) { return nx_mount(0, 0, 0, 0, 0); }\n')
+        result = module.audit(self.root)['capabilities']['graphics']
+        self.assertEqual(result['status'], 'not-evidenced')
+
     def test_multiline_placeholder(self):
         self.write('app/vision_badge/src/vision_service.c', 'int f(void) {\n return\n (-ENOSYS);\n}\n')
         result = module.audit(self.root)['capabilities']['ai']
