@@ -8,10 +8,10 @@
 MiMo 多模态服务，识别入口、门牌、站点标识和公共服务设施，再通过语音或
 振动反馈关键信息。
 
-当前目标为 **BK7258 R1**。截至 2026-08-27，独立 Ubuntu 工作区已建立本队
-`bk7258-r1` 板级目录，完成最小 CPU0 + UART0 + NSH 固件构建及 CPU0-only
-镜像打包；应用后端仍有 `-ENOSYS` 占位。开发板尚未到达，没有 R1 启动、
-NSH 响应或外设实机结果。
+当前目标为 **BK7258 R1**。截至 2026-08-28，已经在本队 R1 实机完成
+CPU0 + UART0 + NSH 启动、SysTick、堆、procfs、RAMLOG/dmesg 和三按键/红绿
+LED GPIO 闭环；CPU0-only 镜像可重复编译、打包并由 BKFIL 从 `0x0` 烧录。
+应用后端仍有 `-ENOSYS` 占位，PSRAM、Wi-Fi、Camera 和 Audio 尚未完成适配。
 
 本队 R1 目录以公开候选 BK7258 实现为基线，但**不代表已确认与 R1 完全兼容**。
 官方仍将套件列为待适配，两份依赖 PR 尚未合并。详见
@@ -130,8 +130,11 @@ R1 引脚和内存布局核对后，应通过配置工具及 `savedefconfig` 更
 ### 3. 打包、烧录与串口
 
 `nuttx.bin` 不能直接烧录；需要按 BK7258 分区和线性 CRC 规则打包为完整镜像。
-当前 `board/bk7258-r1/tools/repack.py` 可利用本地 AIDK bootloader 与 Beken
-packager 生成 CPU0-only 待审镜像。它不会烧写；分区和恢复流程仍待 R1 实机核对。
+当前 `board/bk7258-r1/tools/repack.py` 利用本地 AIDK bootloader、R1 分区表与
+Beken packager 生成 CPU0-only 完整镜像。打包工作目录中的正式产物固定命名为
+`all-app-openvela.bin`；对外复制时统一使用 `bk7258-r1-openvela-all-app.bin`，
+同一开发分支持续覆盖该文件。版本由 Git commit、`manifest.json` 和 SHA256
+追踪，不再把每次实验内容追加到文件名。脚本只打包，不会烧写。
 烧录脚本只接收已审核的完整镜像：
 
 ```bash
@@ -139,25 +142,26 @@ bash scripts/flash.sh /dev/ttyUSB0 path/to/all-app-nuttx.bin --confirm
 bash scripts/monitor.sh /dev/ttyUSB0
 ```
 
-进入 NSH 后可运行：
+当前 NSH 验证配置进入终端后可运行：
 
 ```text
-vision_badge status
-vision_badge selftest
+r1keyled 30
+dmesg
 ```
 
-`status` 只报告真实设备节点；未实现后端返回 `-ENOSYS`。
+应用配置启用后可运行 `vision_badge status` 和 `vision_badge selftest`；未实现
+后端仍返回 `-ENOSYS`。
 
 ## 五、当前进度
 
 | 项目 | 状态 | 说明 |
 | --- | --- | --- |
 | BK7258 公开资料与移植案例 | 已调研 | 找到 NuttX PR #332、vendor_beken PR #2 和声网/博通示例 |
-| BK7258 R1 板级目录 | 最小 NSH 构建与打包通过 | 本队独立目录；R1 硬件匹配仍待核对 |
+| BK7258 R1 板级目录 | 基础链路实机通过 | CPU0/NSH、SysTick、dmesg、按键和红绿 LED 已验证 |
 | 应用构建接入与服务接口 | 主机回归及 ARM 链接通过 | 内置命令已注册；硬件/云端后端仍待实现 |
-| CPU0 + UART0 + NSH | 本队已构建和打包，未上板 | 公开候选作者的实板结果不替代本队 R1 证据 |
+| CPU0 + UART0 + NSH | 本队 R1 实机通过 | 仍需补齐连续 10 次冷启动统计后关闭 P2 门禁 |
 | PSRAM、单屏、双麦 | 公开实验参考 | 当前最小配置的系统堆仍使用 SRAM；未证明 R1 可用 |
-| Wi-Fi、DVP Camera、完整音频与双屏 | 待适配 | 是当前平台主路径 |
+| PSRAM、Wi-Fi、DVP Camera、完整音频与双屏 | 待适配 | 下一主路径为资源核对、PSRAM 与 Camera 单帧 |
 | M1～M10 应用闭环 | 待真机逐项验证 | 以测试证据更新状态 |
 
 ## 六、安全、协作与 AI Coding

@@ -21,16 +21,17 @@ BK7258。本目录现在既是队伍仓中的板级源码，也是完整 OpenVel
 ## R1 与公开 bk7258-devkit 的关系
 
 当前结论：**SoC 相同，板级不能视为完全兼容。** 本目录从公开候选实现提取
-最小 CPU0/NSH 骨架，再按 R1 原理图和 AIDK 工程建立独立名称；目前能证明的是
-构建和打包通过，尚无 R1 实机启动证据。
+最小 CPU0/NSH 骨架，再按 R1 原理图和 AIDK 工程建立独立名称。当前已经在
+本队 R1 实机验证启动、NSH、SysTick、RAMLOG/dmesg，以及三按键和红绿 LED。
 
 | 核对项 | 当前 R1 最小目录 | 仍待实机确认 |
 | --- | --- | --- |
 | 运行核 | CPU0，AIDK 术语为 CP；CPU1/CPU2 暂不启动 | 原厂 bootloader 的实际交接状态 |
-| UART0 | 原理图对应 GPIO11 TX、GPIO10 RX | 串口芯片、波特率与启动日志 |
-| 时钟 | 按 AIDK CPU0 配置暂取 240 MHz | bootloader 交接后的真实 CPU 时钟 |
+| UART0 | GPIO11 TX、GPIO10 RX，115200 8N1 已实测 | 长时间收发稳定性 |
+| 时钟 | 240 MHz 配置下 SysTick、`sleep`、`uptime` 已实测 | 精确时钟误差与低功耗切换 |
 | SRAM | 暂沿用公开 bring-up 的保守窗口 | R1 保留区、共享区和可扩展范围 |
-| Flash | CPU0 分区物理偏移暂取 `0x11000` | 出厂分区、校准区和恢复流程 |
+| Flash | CPU0 从物理偏移 `0x11000` 启动，完整镜像从 `0x0` 烧录成功 | 校准区保护与恢复流程完善 |
+| GPIO | KEY1/2/3=P12/P13/P8，红/绿 LED=P40/P41，实机通过 | 振动与项目所需控制输出 |
 | 外设 | NSH 配置不启用屏、相机、音频、Wi-Fi、PSRAM 堆 | 器件 ID、引脚、供电、DMA 与驱动 |
 
 公开依赖仍是待合并的 `open-vela/nuttx#332` 和 `open-vela/vendor_beken#2`；固定
@@ -67,9 +68,10 @@ python3 ../vendor/beken/boards/bk7258/bk7258-r1/tools/repack.py \
   --nuttx-bin ../cmake_out/bk7258-r1_nsh/nuttx.bin
 ```
 
-2026-08-27 已完成 `bk7258-r1:nsh` 构建和 CPU0-only 打包；这只是构建门禁，
-不是 R1 启动、NSH 或烧录验证。首次烧写前仍需保存恢复路径、出厂镜像、分区与
-校准数据。
+2026-08-28 已完成 `bk7258-r1:nsh` 构建、CPU0-only 打包、BKFIL 烧录和基础
+实机验证。正式打包产物固定为 `all-app-openvela.bin`；对外复制使用
+`bk7258-r1-openvela-all-app.bin`，版本身份由 commit、manifest 与 SHA256 决定。
+详细证据见 `docs/progress/R1基础链路实机验证-20260828.md`。
 
 ## 从哪里开始阅读
 

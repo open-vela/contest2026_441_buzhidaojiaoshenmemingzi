@@ -27,8 +27,8 @@
 #define GPIO_KEY1       12
 #define GPIO_KEY2       13
 #define GPIO_KEY3        8
-#define GPIO_LED_RED     41
-#define GPIO_LED_GREEN   42
+#define GPIO_LED_RED     40
+#define GPIO_LED_GREEN   41
 
 int bk7258_bringup(void);
 
