@@ -5,6 +5,8 @@ if ARCH_BOARD_CUSTOM
 config BK7258_R1
 	bool
 	default y
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_LEDS
 	help
 		Internal marker for the Agora/Beken R1 development kit.
 

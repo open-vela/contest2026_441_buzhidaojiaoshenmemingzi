@@ -20,6 +20,14 @@
 
 set(SRCS bk7258_bringup.c bk7258_boardinitialize.c)
 
+if(CONFIG_ARCH_BUTTONS)
+  list(APPEND SRCS bk7258_buttons.c)
+endif()
+
+if(CONFIG_ARCH_HAVE_LEDS AND NOT CONFIG_ARCH_LEDS)
+  list(APPEND SRCS bk7258_userleds.c)
+endif()
+
 if(CONFIG_BOARDCTL)
   list(APPEND SRCS bk7258_appinit.c)
 endif()

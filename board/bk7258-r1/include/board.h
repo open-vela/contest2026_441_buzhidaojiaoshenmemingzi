@@ -89,6 +89,29 @@
 #define BOARD_UART0_TX_GPIO    11    /* UART0 发送引脚：GPIO11 */
 #define BOARD_UART0_RX_GPIO    10    /* UART0 接收引脚：GPIO10 */
 
+/* R1 user buttons.  The button circuit pulls each pin high and connects it
+ * to ground when pressed, so board_buttons() converts a low level to a set
+ * bit in the returned button mask.
+ */
+
+#define BUTTON_KEY1             0
+#define BUTTON_KEY2             1
+#define BUTTON_KEY3             2
+#define NUM_BUTTONS             3
+
+#define BUTTON_KEY1_BIT         (1u << BUTTON_KEY1)
+#define BUTTON_KEY2_BIT         (1u << BUTTON_KEY2)
+#define BUTTON_KEY3_BIT         (1u << BUTTON_KEY3)
+
+/* R1 user LEDs.  Both LEDs are active high according to the R1 schematic. */
+
+#define BOARD_LED_RED           0
+#define BOARD_LED_GREEN         1
+#define BOARD_NLEDS             2
+
+#define BOARD_LED_RED_BIT       (1u << BOARD_LED_RED)
+#define BOARD_LED_GREEN_BIT     (1u << BOARD_LED_GREEN)
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * LED 状态指示（M1 阶段全部禁用）
  *

@@ -19,6 +19,17 @@
 
 #include <nuttx/config.h>
 
+/* Physical R1 pin mapping.  Keep these numbers in the board layer: the
+ * BK7258 chip driver knows how to operate a pin, but it must not know which
+ * pin the R1 schematic calls KEY1 or LED_RED.
+ */
+
+#define GPIO_KEY1       12
+#define GPIO_KEY2       13
+#define GPIO_KEY3        8
+#define GPIO_LED_RED     41
+#define GPIO_LED_GREEN   42
+
 int bk7258_bringup(void);
 
 #endif /* __BOARDS_BK7258_R1_SRC_BK7258_R1_H */

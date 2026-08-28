@@ -22,6 +22,16 @@ include $(TOPDIR)/Make.defs
 
 CSRCS = bk7258_bringup.c bk7258_boardinitialize.c
 
+ifeq ($(CONFIG_ARCH_BUTTONS),y)
+CSRCS += bk7258_buttons.c
+endif
+
+ifeq ($(CONFIG_ARCH_HAVE_LEDS),y)
+ifneq ($(CONFIG_ARCH_LEDS),y)
+CSRCS += bk7258_userleds.c
+endif
+endif
+
 ifeq ($(CONFIG_BOARDCTL),y)
 CSRCS += bk7258_appinit.c
 endif

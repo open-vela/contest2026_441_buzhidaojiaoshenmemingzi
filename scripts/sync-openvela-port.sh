@@ -51,6 +51,8 @@ src/bk7258-r1.h
 src/bk7258_appinit.c
 src/bk7258_boardinitialize.c
 src/bk7258_bringup.c
+src/bk7258_buttons.c
+src/bk7258_userleds.c
 tools/repack.py
 '
 
