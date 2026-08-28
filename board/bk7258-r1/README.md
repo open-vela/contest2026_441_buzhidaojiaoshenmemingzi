@@ -64,8 +64,7 @@ bash scripts/build.sh nsh -j2
 bash scripts/build.sh app -j2
 
 # 生成包含 Beken bootloader + NuttX CPU0 的待审镜像（不会烧写）
-python3 ../vendor/beken/boards/bk7258/bk7258-r1/tools/repack.py \
-  --nuttx-bin ../cmake_out/bk7258-r1_nsh/nuttx.bin
+bash scripts/package.sh nsh
 ```
 
 2026-08-28 已完成 `bk7258-r1:nsh` 构建、CPU0-only 打包、BKFIL 烧录和基础

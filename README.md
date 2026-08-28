@@ -88,6 +88,16 @@ bash contest2026_441_buzhidaojiaoshenmemingzi/scripts/build.sh nsh -j2
 实际固件编译器为预编译 `arm-none-eabi-gcc 13.4.0`，不是主机 GCC。等 NSH
 实机通过后，再用 `scripts/build.sh app -j2` 构建包含应用的完整固件。
 
+构建后用固定入口发布完整烧录镜像：
+
+```bash
+bash scripts/package.sh nsh
+```
+
+产物固定发布到 `out/bk7258-r1/nsh/`；切换应用配置时使用
+`scripts/package.sh app`，发布到相邻的 `app/` 目录。两个 profile 使用独立目录，
+目录内文件名保持不变。
+
 主机侧回归不需要开发板，也不会调用真实模型：
 
 ```bash
@@ -134,7 +144,9 @@ R1 引脚和内存布局核对后，应通过配置工具及 `savedefconfig` 更
 Beken packager 生成 CPU0-only 完整镜像。打包工作目录中的正式产物固定命名为
 `all-app-openvela.bin`；对外复制时统一使用 `bk7258-r1-openvela-all-app.bin`，
 同一开发分支持续覆盖该文件。版本由 Git commit、`manifest.json` 和 SHA256
-追踪，不再把每次实验内容追加到文件名。脚本只打包，不会烧写。
+追踪，不再把每次实验内容追加到文件名。其中 `nuttx.bin` 的 SHA256 标识程序
+内容，完整镜像 SHA256 标识当次实际烧录文件；Beken packager 的分区尾部填充
+可能令两次等价打包的完整镜像哈希不同。脚本只打包，不会烧写。
 烧录脚本只接收已审核的完整镜像：
 
 ```bash
