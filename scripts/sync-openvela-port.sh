@@ -55,7 +55,11 @@ tools/repack.py
 '
 
 chip_files='
+CMakeLists.txt
+Make.defs
 bk7258_allocateheap.c
+bk7258_gpio.c
+bk7258_gpio.h
 bk7258_irq.c
 bk7258_lowputc.c
 bk7258_lowputc.h
@@ -65,6 +69,7 @@ bk7258_start.h
 bk7258_timerisr.c
 chip.h
 hardware/bk7258_memorymap.h
+hardware/bk7258_gpio.h
 hardware/bk7258_uart.h
 '
 
