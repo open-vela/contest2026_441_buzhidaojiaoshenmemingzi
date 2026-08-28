@@ -99,6 +99,8 @@ int bk7258_bringup(void)
     }
 #endif
 
+  syslog(LOG_INFO, "BK7258 R1 bring-up complete\n");
+
   UNUSED(ret);       /* 如果 CONFIG_FS_PROCFS 没开，ret 一直等于 OK，消除编译警告 */
   return OK;         /* 始终返回 OK，M1 阶段不因非关键失败而阻止启动 */
 }
