@@ -56,6 +56,7 @@ from pathlib import Path
 CPU0_FLASH_OFFSET = 0x11000      # CPU0 app 分区的物理 Flash 偏移（68KB 之后）
 CPU0_PARTITION_KIB = 2856        # CPU0 app 分区大小：2856 KiB
 BOOTLOADER_PARTITION_KIB = 68    # bootloader 分区大小：68 KiB
+EXPECTED_IMAGE_BYTES = CPU0_FLASH_OFFSET + CPU0_PARTITION_KIB * 1024
 
 # Beken Flash 控制器使用 34/32 CRC 编码：每 32 字节有效数据占用 34 字节物理空间。
 # 所以有效数据上限 = 分区大小 * 32/34
@@ -73,6 +74,25 @@ def sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def run_command(command: list[str], cwd: Path, label: str) -> None:
+    """Run one official Beken packaging step and surface its full output."""
+    env = os.environ.copy()
+    env.setdefault("TERM", "xterm")
+    result = subprocess.run(
+        command,
+        cwd=cwd,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if result.stdout:
+        print(result.stdout.rstrip())
+    if result.returncode != 0:
+        fail(f"{label} exited with status {result.returncode}")
 
 
 def workspace_root() -> Path:
@@ -113,6 +133,11 @@ def parse_args() -> argparse.Namespace:
         help="override the BK7258 normal bootloader binary",
     )
     parser.add_argument(
+        "--partition-csv",
+        type=Path,
+        help="override the BK7258 R1/AIDK partition definition",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path(__file__).resolve().parent / "bk_repack_work",
@@ -128,28 +153,49 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    nuttx_bin = args.nuttx_bin.expanduser().resolve()
-    aidk_root = args.aidk_root.expanduser().resolve()
-    idk_root = aidk_root / "bk_avdk/bk_idk"
+
+    # ── 解析路径 ──────────────────────────────────────────────────
+    # 把命令行参数中的路径展开（处理 ~ 等符号）、转绝对路径。
+
+    nuttx_bin = args.nuttx_bin.expanduser().resolve()        # 用户编译出来的 nuttx.bin
+    aidk_root = args.aidk_root.expanduser().resolve()         # Beken 官方 SDK 根目录
+    idk_root = aidk_root / "bk_avdk/bk_idk"                  # IDK 子目录
     bootloader = (
         args.bootloader.expanduser().resolve()
         if args.bootloader
         else idk_root
         / "components/bk_libs/bk7258/bootloader/normal_bootloader/bootloader.bin"
+    )                                                         # bootloader.bin 路径
+    packager = idk_root / "tools/env_tools/beken_packager/beken_packager"  # Beken 打包器
+    image_generator = idk_root / "tools/env_tools/beken_packager/cmake_Gen_image"
+    image_generator_config = idk_root / "tools/env_tools/beken_packager/config.json"
+    partition_generator = (
+        idk_root / "tools/build_tools/part_table_tools/gen_bk7256partitions.py"
     )
-    packager = idk_root / "tools/env_tools/beken_packager/beken_packager"
-    output_dir = args.output_dir.expanduser().resolve()
+    partition_csv = (
+        args.partition_csv.expanduser().resolve()
+        if args.partition_csv
+        else aidk_root / "projects/beken_genie/config/bk7258/bk7258_partitions.csv"
+    )
+    output_dir = args.output_dir.expanduser().resolve()       # 输出目录
 
-    # ── 步骤 1：校验输入文件是否存在 ──────────────────────────────────────
+    # ── 步骤 1：校验输入文件是否存在 ──────────────────────────────
+    # 如果 nuttx.bin 或 bootloader.bin 不存在，直接报错退出。
 
     for label, path in (
         ("NuttX binary", nuttx_bin),
         ("BK7258 bootloader", bootloader),
+        ("BK7258 partition CSV", partition_csv),
+        ("Beken partition generator", partition_generator),
+        ("Beken image generator", image_generator),
+        ("Beken image generator config", image_generator_config),
     ):
         if not path.is_file():
             fail(f"{label} not found: {path}")
 
-    # ── 步骤 2：校验文件大小是否超过分区限制 ──────────────────────────────
+    # ── 步骤 2：校验文件大小是否超过分区限制 ──────────────────────
+    # nuttx.bin 不能超过 CPU0_MAX_RAW_BYTES（约 2.69MB，因为 34/32 CRC 编码）
+    # bootloader.bin 不能超过 68KB
 
     if nuttx_bin.stat().st_size > CPU0_MAX_RAW_BYTES:
         fail(
@@ -163,40 +209,101 @@ def main() -> None:
             f"{bootloader.stat().st_size} bytes"
         )
 
-    # ── 步骤 3：准备工作目录，拷贝输入文件 ────────────────────────────────
+    # ── 步骤 3：准备工作目录，拷贝输入文件 ────────────────────────
+    # 清空旧的输出目录，重新创建，然后准备 nuttx 和注入分区表后的 bootloader。
 
     if output_dir.exists():
-        shutil.rmtree(output_dir)
-    output_dir.mkdir(parents=True)
+        shutil.rmtree(output_dir)                              # 删除旧目录
+    output_dir.mkdir(parents=True)                             # 创建新目录
 
-    work_bootloader = output_dir / "bootloader.bin"
-    work_app = output_dir / "app.bin"
-    shutil.copy2(bootloader, work_bootloader)
-    shutil.copy2(nuttx_bin, work_app)      # nuttx.bin 重命名为 app.bin
+    work_bootloader = output_dir / "bootloader.bin"            # 工作目录下的 bootloader
+    work_app = output_dir / "app.bin"                          # 工作目录下的 app（nuttx 重命名）
+    shutil.copy2(nuttx_bin, work_app)                          # 拷贝 nuttx.bin → app.bin
 
-    # ── 步骤 4：生成 configuration.json（Beken 打包器的输入）─────────────
-    # 告诉打包器：bootloader 放 0x00000，nuttx/app 放 0x11000
+    # 官方 AIDK 不会直接使用原始 bootloader.bin。它先根据项目分区 CSV 生成
+    # partition_bootloader.json，再用 cmake_Gen_image 将分区表注入 bootloader。
+    # R1 使用 beken_genie 的 8 MiB 布局；虽然 M1 阶段不打包 CPU1/CPU2，仍保留
+    # 官方完整分区描述，避免 Bootloader 与后续多核阶段使用不同的 Flash 布局。
+    generated_partition_json = output_dir / "partition_bk7256_ota_a_new.json"
+    partition_json = output_dir / "partition_bootloader.json"
+    run_command(
+        [
+            sys.executable,
+            str(partition_generator),
+            str(partition_csv),
+            f"--to-json={output_dir / 'partition-placeholder.json'}",
+            "--flash-size=8MB",
+            "--smode",
+            "--smode-inseq=1,1,2,0,0,0",
+        ],
+        output_dir,
+        "Beken partition generator",
+    )
+    if not generated_partition_json.is_file():
+        fail(f"partition generator did not create: {generated_partition_json}")
+    generated_partition_json.replace(partition_json)
 
-    # FreeRTOS is the packager's legacy image magic, not an assertion that
-    # the CPU0 payload uses FreeRTOS.
+    partition_data = json.loads(partition_json.read_text(encoding="utf-8"))
+    partitions = {
+        item["name"]: item for item in partition_data.get("part_table", [])
+    }
+    boot_part = partitions.get("bootloader", {})
+    app_part = partitions.get("app", {})
+    if (
+        int(boot_part.get("offset", "-1"), 0) != 0
+        or boot_part.get("len", "").upper() != "68K"
+        or int(app_part.get("offset", "-1"), 0) != CPU0_FLASH_OFFSET
+        or app_part.get("len", "").upper() != f"{CPU0_PARTITION_KIB}K"
+    ):
+        fail("generated partition table does not match the R1 CPU0 layout")
+
+    run_command(
+        [
+            str(image_generator),
+            "genfile",
+            "-injsonfile",
+            str(image_generator_config),
+            "-infile",
+            str(bootloader),
+            "-outfile",
+            str(work_bootloader),
+            "-genjson",
+            str(partition_json),
+        ],
+        output_dir,
+        "Beken bootloader partition injection",
+    )
+    if not work_bootloader.is_file():
+        fail(f"partition-injected bootloader was not created: {work_bootloader}")
+    if work_bootloader.stat().st_size > BOOTLOADER_PARTITION_KIB * 1024:
+        fail(
+            "partition-injected bootloader exceeds its 68 KiB partition: "
+            f"{work_bootloader.stat().st_size} bytes"
+        )
+
+    # ── 步骤 4：生成 configuration.json（Beken 打包器的输入）─────
+    # 告诉 Beken 打包器：哪些文件放哪个分区、分区大小、起始地址。
+
+    # "FreeRTOS" 是打包器的历史遗留字段，不代表 CPU0 用 FreeRTOS 系统。
+    # 它只是告诉打包器按 FreeRTOS 镜像格式打包。
     package_config = {
         "magic": "FreeRTOS",
         "version": "0.1",
-        "count": 2,
+        "count": 2,                                           # 2 个 section：bootloader + app
         "section": [
             {
                 "firmware": "bootloader.bin",
                 "version": "2M.1220",
                 "partition": "bootloader",
-                "start_addr": "0x00000000",
-                "size": f"{BOOTLOADER_PARTITION_KIB}K",
+                "start_addr": "0x00000000",                   # bootloader 从 Flash 0x00000 开始
+                "size": f"{BOOTLOADER_PARTITION_KIB}K",       # 68KB
             },
             {
                 "firmware": "app.bin",
                 "version": "2M.1220",
                 "partition": "app",
-                "start_addr": f"0x{CPU0_FLASH_OFFSET:08x}",
-                "size": f"{CPU0_PARTITION_KIB}K",
+                "start_addr": f"0x{CPU0_FLASH_OFFSET:08x}",   # nuttx 从 Flash 0x11000 开始
+                "size": f"{CPU0_PARTITION_KIB}K",              # 2856KB
             },
         ],
     }
@@ -205,6 +312,8 @@ def main() -> None:
     config_path.write_text(
         json.dumps(package_config, indent=4) + "\n", encoding="utf-8"
     )
+
+    # ── 生成 manifest.json（元数据，方便调试和记录）───────────────
 
     manifest = {
         "mode": "bk7258-r1-openvela-cpu0-only",
@@ -220,8 +329,15 @@ def main() -> None:
             "source": str(bootloader),
             "bytes": bootloader.stat().st_size,
             "sha256": sha256(bootloader),
+            "packed_bytes": work_bootloader.stat().st_size,
+            "packed_sha256": sha256(work_bootloader),
         },
-        "cpu1_cpu2_included": False,
+        "partition_table": {
+            "source": str(partition_csv),
+            "generated": str(partition_json),
+            "sha256": sha256(partition_json),
+        },
+        "cpu1_cpu2_included": False,                           # M1 阶段不包含 CPU1/CPU2 镜像
     }
 
     manifest_path = output_dir / "manifest.json"
@@ -232,40 +348,33 @@ def main() -> None:
     print(f"[repack] workspace : {workspace_root()}")
     print(f"[repack] NuttX CPU0: {nuttx_bin}")
     print(f"[repack] bootloader: {bootloader}")
+    print(f"[repack] partitions: {partition_csv}")
     print(
         f"[repack] CPU0 size : {nuttx_bin.stat().st_size} / "
         f"{CPU0_MAX_RAW_BYTES} raw bytes"
     )
     print("[repack] CPU1/CPU2: omitted; NuttX will not start the AP cores")
 
-    if args.prepare_only:
+    if args.prepare_only:                                     # --prepare-only 模式：只准备不打包
         print(f"[repack] prepared: {output_dir}")
         return
 
-    # ── 步骤 5：调用 Beken 官方打包器 ────────────────────────────────────
+    # ── 步骤 5：调用 Beken 官方打包器 ────────────────────────────
     # beken_packager 读取 configuration.json，按分区表拼接 bootloader + app，
     # 加上 CRC(34/32) 校验码，输出 all_*.bin。
 
     if not packager.is_file():
         fail(f"Beken packager not found: {packager}")
 
-    env = os.environ.copy()
-    env.setdefault("TERM", "xterm")
-    result = subprocess.run(
+    run_command(
         [str(packager), str(config_path)],
-        cwd=output_dir,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=False,
+        output_dir,
+        "Beken packager",
     )
-    if result.stdout:
-        print(result.stdout.rstrip())
-    if result.returncode != 0:
-        fail(f"Beken packager exited with status {result.returncode}")
 
-    # ── 步骤 6：重命名输出文件为 all-app-openvela.bin ────────────────────
+    # ── 步骤 6：重命名输出文件为 all-app-openvela.bin ────────────
+    # 打包器输出文件名不确定（如 all_20240827_143022.bin），
+    # 这里找到唯一的 all_*.bin 文件，重命名为固定名称。
 
     generated_images = sorted(output_dir.glob("all_*.bin"))
     if len(generated_images) != 1:
@@ -274,8 +383,17 @@ def main() -> None:
 
     generated = generated_images[0]
 
-    final_image = output_dir / "all-app-openvela.bin"
-    generated.replace(final_image)
+    final_image = output_dir / "all-app-openvela.bin"          # 最终镜像文件名
+    generated.replace(final_image)                             # 重命名
+
+    if final_image.stat().st_size != EXPECTED_IMAGE_BYTES:
+        fail(
+            f"unexpected final image size {final_image.stat().st_size}; "
+            f"expected {EXPECTED_IMAGE_BYTES} bytes (end of CPU0 partition)"
+        )
+
+    # ── 更新 manifest.json，加入输出文件信息 ────────────────────
+
     manifest["output"] = {
         "path": str(final_image),
         "bytes": final_image.stat().st_size,
