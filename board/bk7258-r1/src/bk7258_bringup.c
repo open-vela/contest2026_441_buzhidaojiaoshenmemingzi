@@ -75,16 +75,30 @@ int bk7258_bringup(void)
 {
   int ret = OK;
 
-#ifdef CONFIG_FS_PROCFS
-  /* Mount the procfs file system */
+  /* ── 挂载 /proc 文件系统 ───────────────────────────────────
+   * /proc 是一个虚拟文件系统（数据只存在内存里，不写硬盘/Flash）。
+   * 挂载后可以用 cat /proc/meminfo 查看内存使用情况，
+   * cat /proc/version 查看版本信息，ls /proc/ 列出所有进程等。
+   *
+   * 通俗理解：/proc 就是系统的"体检报告"，可以随时查看系统状态。
+   *
+   * nx_mount 参数说明：
+   *   NULL        = 源设备（虚拟文件系统不需要设备，所以是 NULL）
+   *   "/proc"     = 挂载点（访问路径）
+   *   "procfs"    = 文件系统类型（告诉内核用 procfs 驱动）
+   *   0           = 挂载标志（0 = 默认选项）
+   *   NULL        = 额外数据（不需要额外参数） */
 
+#ifdef CONFIG_FS_PROCFS
   ret = nx_mount(NULL, "/proc", "procfs", 0, NULL);
   if (ret < 0)
     {
+      /* 挂载失败只是打印警告，不阻止系统继续启动。
+       * 因为 /proc 不是关键功能，失败了系统还能正常运行。 */
       syslog(LOG_ERR, "ERROR: Failed to mount procfs at /proc: %d\n", ret);
     }
 #endif
 
-  UNUSED(ret);
-  return OK;
+  UNUSED(ret);       /* 如果 CONFIG_FS_PROCFS 没开，ret 一直等于 OK，消除编译警告 */
+  return OK;         /* 始终返回 OK，M1 阶段不因非关键失败而阻止启动 */
 }

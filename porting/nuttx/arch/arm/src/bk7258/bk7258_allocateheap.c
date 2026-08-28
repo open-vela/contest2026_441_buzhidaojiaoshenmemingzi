@@ -61,10 +61,10 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* The heap extends from the top of the idle stack to the end of the RAM
- * data region.  CONFIG_RAM_START/SIZE are set in defconfig
- * (0x28010000 / 336KB for the CPU0 app RAM window).
- */
+/* BK7258_RAM_END：RAM 的结束地址。
+ * CONFIG_RAM_START = 0x28010000（ld.script 中 SRAM 的起始地址）
+ * CONFIG_RAM_SIZE  = 0x54000（336KB，CPU0 app 的 RAM 窗口大小）
+ * 所以 RAM_END = 0x28010000 + 0x54000 = 0x28064000 */
 
 #define BK7258_RAM_END (CONFIG_RAM_START + CONFIG_RAM_SIZE)
 
@@ -72,12 +72,17 @@
  * Public Functions
  ****************************************************************************/
 
-/****************************************************************************
- * Name: up_allocate_heap
- ****************************************************************************/
+/* ── up_allocate_heap ──────────────────────────────────────────────────────
+ * 告诉 NuttX 内核"堆从哪里开始、有多大"。
+ *
+ * 堆起点 = g_idle_topstack（空闲任务栈顶，在 bk7258_start.c 中定义）
+ *         = _ebss + CONFIG_IDLETHREAD_STACKSIZE
+ * 堆大小 = RAM 末尾 - 堆起点 = 整个 RAM 剩余部分。
+ *
+ * 内核拿到这两个值后，malloc() 就从这里分配内存。 */
 
 void up_allocate_heap(void **heap_start, size_t *heap_size)
 {
-  *heap_start = (void *)g_idle_topstack;
-  *heap_size  = BK7258_RAM_END - g_idle_topstack;
+  *heap_start = (void *)g_idle_topstack;              /* 堆从空闲任务栈顶开始 */
+  *heap_size  = BK7258_RAM_END - g_idle_topstack;     /* 剩余 RAM 全给堆 */
 }

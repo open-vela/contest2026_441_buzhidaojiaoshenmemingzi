@@ -62,23 +62,32 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+/* SYSTICK_RELOAD = 时钟频率 / 每秒 tick 数 - 1
+ * 例如：240MHz / 100 = 2,400,000 - 1 = 2,399,999
+ * 意思是 SysTick 每数 240 万个时钟周期就触发一次中断（每次 10ms）
+ * 具体值待实机测量确认。 */
+
 #define SYSTICK_RELOAD ((BOARD_SYSTICK_CLOCK / CLK_TCK) - 1)
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 
-/****************************************************************************
- * Name: up_timer_initialize
+/* ── up_timer_initialize ───────────────────────────────────────────────────
+ * 系统时钟初始化（nx_start() 调用，在中断系统初始化之前）。
  *
- * Description:
- *   This function is called during start-up to initialize the timer
- *   hardware (SysTick).
+ * 为什么要用 SysTick？
+ *   SysTick 是 Arm 芯片内置的 24 位倒计时器，所有 Cortex-M 芯片都有。
+ *   不需要额外外设，配置简单，NuttX 内核直接用它做任务切换的时钟心跳。
  *
- ****************************************************************************/
+ * 两个步骤：
+ *   1. 设置重载值（SYSTICK_RELOAD）：每次倒计时到 0 后自动重新加载这个值
+ *   2. 调用 systick_initialize()：启动 SysTick，注册中断处理函数
+ *      - true = 用 CPU 时钟（240MHz）做时钟源
+ *      - -1  = 用默认中断优先级 */
 
 void up_timer_initialize(void)
 {
-  putreg32(SYSTICK_RELOAD, NVIC_SYSTICK_RELOAD);
+  putreg32(SYSTICK_RELOAD, NVIC_SYSTICK_RELOAD);  /* 设置重载值 */
   up_timer_set_lowerhalf(systick_initialize(true, BOARD_SYSTICK_CLOCK, -1));
 }

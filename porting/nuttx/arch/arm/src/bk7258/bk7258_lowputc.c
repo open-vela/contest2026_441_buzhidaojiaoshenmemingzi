@@ -54,10 +54,9 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-/* Console defaults to UART0: the on-board CH340 is UART0 (bootROM DL_UART),
- * so download and log share one cable.  NuttX runs as the CPU0 main core
- * directly attached to this port.
- */
+/* 默认使用 UART0 作为调试串口（板载 CH340 芯片连接 UART0）。
+ * 下载和日志共用一根 USB 线：bootROM 的 DL_UART 就是 UART0。
+ * NuttX 作为 CPU0 主核运行，直接使用这个端口。 */
 
 #ifndef CONFIG_BK7258_CONSOLE_UART_BASE
 #  define CONFIG_BK7258_CONSOLE_UART_BASE  BK7258_UART0_BASE
@@ -67,61 +66,76 @@
 #  define CONFIG_BK7258_CONSOLE_BAUD       115200
 #endif
 
-/* UART clock source = 26MHz XTAL (ARMINO: UART_CLOCK = CONFIG_XTAL_FREQ,
- * default 26M).  Baud formula (ARMINO uart_ll):
- *   baud = UART_CLK / (clk_div + 1)  =>  clk_div = UART_CLK / baud - 1
- *   26000000 / 115200 = 225.69 -> clk_div = 225 (actual 115044, ~0.13%).
- */
+/* UART 波特率计算公式（来自 ARMINO SDK 的 uart_ll.c）：
+ *    波特率 = 时钟频率 / (分频值 + 1)
+ *    分频值 = 时钟频率 / 波特率 - 1
+ *
+ * 例子：26MHz / 115200 = 225.69 → 取整 225
+ *      实际波特率 = 26MHz / 226 = 115044，误差约 0.13%（完全可接受）
+ *
+ * 加 CONFIG_BK7258_CONSOLE_BAUD/2 是为了四舍五入取整。 */
 
-#define BK7258_UART_CLK   26000000u
+#define BK7258_UART_CLK   26000000u      /* UART 时钟源：26MHz 晶振 */
 #define BK7258_UART_DIV \
   (((BK7258_UART_CLK + (CONFIG_BK7258_CONSOLE_BAUD / 2)) / \
-    CONFIG_BK7258_CONSOLE_BAUD) - 1)
+    CONFIG_BK7258_CONSOLE_BAUD) - 1)    /* 波特率分频值，四舍五入 */
 
-#define CONSOLE_BASE      CONFIG_BK7258_CONSOLE_UART_BASE
+#define CONSOLE_BASE      CONFIG_BK7258_CONSOLE_UART_BASE  /* 调试串口基地址 */
 
-/* --- Peripheral clock enable + GPIO pin mux ------------------------------
- * As the CPU0 main core, NuttX must enable the UART peripheral clock itself
- * and mux the TX/RX pins to the UART function (the bootloader may have torn
- * them down at hand-off).  Registers from the ARMINO SDK:
- *   Clock:  SYS_CPU_DEVICE_CLK_ENABLE @ 0x44010030 (UART0_CKEN = bit2)
- *   Source: SYS_CLK_DIV_MODE1 @ 0x44010020 (cksel_uart0 = bit10, 0 = XTAL)
- *   Pins:   system function select pins 8-15 @ 0x440100C4 (4 bits each,
- *           value 0 = UART0)
- *   Per pin: config @ 0x44000400 + n*4, bit6 = second (peripheral) function
- */
+/* ── 外设时钟使能 + GPIO 引脚复用 ────────────────────────────────────────
+ *
+ *   作为 CPU0 主核，NuttX 必须自己开启 UART0 外设时钟并配置 GPIO 引脚为
+ *   串口功能。bootloader 在交接时可能已经拆掉了这些配置，不重新配的话写
+ *   FIFO 不会有任何输出。
+ *
+ *   寄存器地址（来自 ARMINO SDK）：
+ *     SYS_CLK_EN        (0x44010030): bit2 = UART0 时钟使能
+ *     SYS_CLK_DIV_MODE1 (0x44010020): bit10 = UART0 时钟源选择（0=26MHz XTAL）
+ *     SYS_GPIO_FUNC8_15 (0x440100C4): GPIO8-15 的功能选择（每 4 位控制一个引脚）
+ *     GPIO_CFG(n)       (0x44000400 + n*4): 每个 GPIO 的配置寄存器，bit6=第二功能
+ * ─────────────────────────────────────────────────────────────────────────── */
 
 #define BK7258_SYS_CLK_EN        (BK7258_SYS_BASE + 0x30)      /* 0x44010030 */
-#  define SYS_CLK_EN_UART0       (1 << 2)
+#  define SYS_CLK_EN_UART0       (1 << 2)  /* bit2: 开 UART0 时钟 */
 #define BK7258_SYS_GPIO_FUNC8_15 (BK7258_SYS_BASE + 0xc4)      /* 0x440100C4 */
 #define BK7258_SYS_CLK_DIV_MODE1 (BK7258_SYS_BASE + 0x20)      /* 0x44010020 */
-#define BK7258_GPIO_CFG(n)       (BK7258_AON_GPIO_BASE + (n) * 4)
-#  define GPIO_CFG_SECOND_FUNC   (1 << 6)
+#define BK7258_GPIO_CFG(n)       (BK7258_AON_GPIO_BASE + (n) * 4)  /* GPIO 配置寄存器 */
+#  define GPIO_CFG_SECOND_FUNC   (1 << 6)  /* bit6: 使能第二功能（外设模式） */
 
 static void bk7258_putc_uart(uintptr_t base, char ch);
 
-/* Enable the UART0 clock + clock source (XTAL) and mux GPIO11/GPIO10 to
- * UART0 TXD/RXD.  As the CPU0 main core the console uses UART0 (CH340); the
- * bootloader may have torn UART0 down at hand-off, so re-enable the clock
- * and re-mux the pins here, otherwise writing the FIFO emits no character.
- * Pins: UART0_TX = GPIO11, UART0_RX = GPIO10 (function index 0).
- */
+/* ── bk7258_uart0_hwsetup ──────────────────────────────────────────────────
+ * 开启 UART0 外设时钟、选时钟源为 26MHz XTAL、把 GPIO10/11 复用为 UART0 的
+ * RX/TX 引脚。bootloader 在交接时可能拆掉了这些配置，不重新配就没法用串口。
+ *
+ * 引脚映射：
+ *   GPIO11 → UART0_TXD（发送，功能编号 0）
+ *   GPIO10 → UART0_RXD（接收，功能编号 0）
+ * ─────────────────────────────────────────────────────────────────────────── */
 
 static void bk7258_uart0_hwsetup(void)
 {
-  /* 1) Enable the UART0 peripheral clock */
+  /* 步骤 1：使能 UART0 外设时钟。
+   * SYS_CLK_EN 寄存器 bit2 置 1 → UART0 的时钟开关打开。 */
 
   modifyreg32(BK7258_SYS_CLK_EN, 0, SYS_CLK_EN_UART0);
 
-  /* 2) UART0 clock source = XTAL 26M (cksel_uart0 = bit10, 0 = XTAL) */
+  /* 步骤 2：UART0 时钟源选择 26MHz XTAL。
+   * SYS_CLK_DIV_MODE1 寄存器 bit10 清 0 → 选 XTAL（不用 PLL 分频）。
+   * 与 bootloader 保持一致，这样波特率不会变。 */
 
   modifyreg32(BK7258_SYS_CLK_DIV_MODE1, (1u << 10), 0);
 
-  /* 3) GPIO10 -> UART0_RXD [11:8], GPIO11 -> UART0_TXD [15:12], func 0 */
+  /* 步骤 3：配置 GPIO10 和 GPIO11 的功能编号为 0（UART0）。
+   * SYS_GPIO_FUNC8_15 寄存器中：
+   *   bits[11:8]   = GPIO10 的功能编号 → 清 0 选 UART0_RXD
+   *   bits[15:12]  = GPIO11 的功能编号 → 清 0 选 UART0_TXD */
 
   modifyreg32(BK7258_SYS_GPIO_FUNC8_15, (0xfu << 8) | (0xfu << 12), 0);
 
-  /* 4) Enable the second (peripheral) function on GPIO10/GPIO11 */
+  /* 步骤 4：使能 GPIO10/11 的第二功能（外设模式）。
+   * 每个 GPIO 配置寄存器（0x44000400 + n*4）的 bit6 置 1 → 启用外设功能。
+   * 如果不置位，GPIO 会保持普通 IO 模式，串口信号出不来。 */
 
   modifyreg32(BK7258_GPIO_CFG(10), 0, GPIO_CFG_SECOND_FUNC);
   modifyreg32(BK7258_GPIO_CFG(11), 0, GPIO_CFG_SECOND_FUNC);
@@ -135,36 +149,39 @@ static void bk7258_uart0_hwsetup(void)
  * Name: bk7258_lowsetup
  ****************************************************************************/
 
+/* ── bk7258_uart_config ────────────────────────────────────────────────────
+ * 配置 UART 的数据位、波特率和 TX 使能。
+ *
+ * ⚠️ 关键设计：不做 soft reset！
+ *   bootloader 已经把 UART0 配好了（分频值=225, TX 已开），正在正常发送数据。
+ *   如果做 soft reset 会清除 bootloader 的工作状态，导致 TX 无法排空，
+ *   后续的 putc 会超时并丢字符（症状：CH340 只输出一个乱码字节）。
+ *   所以只在现有配置基础上叠加 8 数据位 + 波特率 + TX 使能，不动其他位。
+ * ─────────────────────────────────────────────────────────────────────────── */
+
 static void bk7258_uart_config(uintptr_t base)
 {
   uint32_t cfg;
 
-  /* Do not soft reset: the bootloader has already configured UART0 and is
-   * transmitting normally (div=225, TX on).  A soft reset would clear its
-   * working TX state so TX no longer drains -> putc times out and drops
-   * characters (symptom: CH340 emits a single garbage byte).  Only ensure
-   * 8 data bits / baud / TX enable on top of the existing config; do not
-   * reset or override the bootloader's working clock/FIFO state.
-   */
+  /* 读出当前配置，只改数据位、分频值和 TX 使能位，保留其他位不动 */
 
   cfg  = getreg32(BK7258_UART_CONFIG(base));
-  cfg &= ~(UART_CFG_DATA_BITS_MASK | UART_CFG_CLK_DIV_MASK);
-  cfg |= UART_CFG_DATA_BITS_8;
-  cfg |= (BK7258_UART_DIV << UART_CFG_CLK_DIV_SHIFT) & UART_CFG_CLK_DIV_MASK;
-  cfg |= UART_CFG_TX_ENABLE;
+  cfg &= ~(UART_CFG_DATA_BITS_MASK | UART_CFG_CLK_DIV_MASK); /* 清掉旧值 */
+  cfg |= UART_CFG_DATA_BITS_8;                               /* 8 数据位 */
+  cfg |= (BK7258_UART_DIV << UART_CFG_CLK_DIV_SHIFT) & UART_CFG_CLK_DIV_MASK; /* 波特率分频 */
+  cfg |= UART_CFG_TX_ENABLE;                                 /* 打开发送 */
 
   putreg32(cfg, BK7258_UART_CONFIG(base));
 }
 
+/* ── bk7258_lowsetup ───────────────────────────────────────────────────────
+ * 被 bk7258_cstart() 调用的第一个外设初始化函数。
+ * 先做硬件初始化（时钟+引脚），再配 UART 参数（数据位+波特率+TX）。 */
+
 void bk7258_lowsetup(void)
 {
-  /* The CPU0 main core enables the UART0 (console = CH340) clock and pin
-   * mux itself (the bootloader may have torn it down at hand-off), then
-   * configures data bits / baud / TX.
-   */
-
-  bk7258_uart0_hwsetup();
-  bk7258_uart_config(BK7258_UART0_BASE);
+  bk7258_uart0_hwsetup();                    /* 开时钟 + 配引脚 */
+  bk7258_uart_config(BK7258_UART0_BASE);     /* 配数据位/波特率/TX */
 }
 
 /****************************************************************************
@@ -175,15 +192,27 @@ void bk7258_lowsetup(void)
  *
  ****************************************************************************/
 
+/* ── bk7258_putc_uart ──────────────────────────────────────────────────────
+ * 轮询发送一个字符（阻塞，不依赖中断）。
+ *
+ * 工作流程：
+ *   1. 死等 FIFO 可写位（bit20）变为 1（最多等 200000 次循环）
+ *   2. 写入 FIFO_PORT 寄存器 → 硬件自动把数据从 TX 引脚发出
+ *
+ * 超时保护：如果 200000 次循环后 FIFO 还是不可写，就放弃（不写数据）。
+ * 这种情况通常意味着 UART 硬件没初始化好。 ────────────────────────────────── */
+
 static void bk7258_putc_uart(uintptr_t base, char ch)
 {
-  volatile int timeout = 200000;
+  volatile int timeout = 200000;  /* 最大等待次数，防止死循环 */
 
+  /* 轮询等待 FIFO 可写：读 FIFO_STATUS 寄存器，检查 bit20（WR_READY） */
   while (((getreg32(BK7258_UART_FIFO_STATUS(base)) &
            UART_FIFO_WR_READY) == 0) && (--timeout > 0))
     {
     }
 
+  /* 把字符写入 FIFO_PORT → 硬件自动发送 */
   putreg32((uint32_t)(uint8_t)ch, BK7258_UART_FIFO_PORT(base));
 }
 

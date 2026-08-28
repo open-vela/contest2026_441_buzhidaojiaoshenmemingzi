@@ -66,11 +66,24 @@
 
 int board_app_initialize(uintptr_t arg)
 {
+  /* ── 路由逻辑 ─────────────────────────────────────────────────
+   * 两条路，取决于 CONFIG_BOARD_LATE_INITIALIZE 配置：
+   *
+   * 路 1（默认）：CONFIG_BOARD_LATE_INITIALIZE 没开
+   *   → 直接在这里调 bk7258_bringup()，挂载 /proc 文件系统
+   *   → 这是 M1 阶段用的路径，简单直接
+   *
+   * 路 2（可选）：CONFIG_BOARD_LATE_INITIALIZE 开了
+   *   → 这里什么都不做，返回 OK
+   *   → 内核晚些时候会调 board_late_initialize()，在那里再调 bk7258_bringup()
+   *   → 适用于需要在更晚阶段初始化外设的场景（比如依赖其他驱动先加载）
+   * ─────────────────────────────────────────────────────────── */
+
 #ifndef CONFIG_BOARD_LATE_INITIALIZE
-  return bk7258_bringup();
+  return bk7258_bringup();        /* 默认路径：立即初始化板级外设 */
 #else
-  UNUSED(arg);
-  return OK;
+  UNUSED(arg);                    /* arg 参数暂时用不到（M1 阶段无额外参数） */
+  return OK;                      /* 推迟到 board_late_initialize() 再初始化 */
 #endif
 }
 
@@ -87,6 +100,14 @@ int board_app_initialize(uintptr_t arg)
 
 void board_late_initialize(void)
 {
+  /* ── 延迟初始化路径 ─────────────────────────────────────────
+   * 只有 CONFIG_BOARD_LATE_INITIALIZE 开了才会编译这个函数。
+   *
+   * 调用时机：比 board_app_initialize() 更晚，内核调度器已经跑起来了，
+   * 可以安全地使用文件系统、设备驱动等高级功能。
+   *
+   * 当前直接调 bk7258_bringup()，和默认路径做一样的事（挂载 /proc）。
+   * 后续阶段可以在这里添加更多依赖其他驱动的初始化（如 LCD、音频等）。 */
   bk7258_bringup();
 }
 #endif

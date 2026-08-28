@@ -68,7 +68,21 @@
 
 void arm_boardinitialize(void)
 {
-  /* Add only hardware that must be ready before the scheduler here.
-   * LCD, audio, camera, PSRAM heap and networking belong to later milestones.
-   */
+  /* ── M1 阶段：空函数 ───────────────────────────────────────
+   * 调度器启动前（此阶段）可以做的事情：
+   *   - GPIO 初始化（设置方向、默认电平）
+   *   - 外设复位引脚（拉高/拉低使能）
+   *   - LCD 背光使能（让屏幕先亮起来）
+   *   - 特殊电源管理配置
+   *
+   * 为什么现在是空的？
+   *   R1 板子还没有需要早期初始化的外设。UART0 的初始化
+   *   已经在芯片层（bk7258_lowputc.c）完成了。
+   *
+   * 后续阶段添加示例：
+   *   bk7258_gpio_config(GPIO_LED, GPIO_OUTPUT | GPIO_VALUE_ONE);
+   *   bk7258_gpio_config(GPIO_BTN, GPIO_INPUT | GPIO_PULLUP);
+   *
+   * 参考：include/board.h（定义 GPIO 引脚编号）
+   *       nuttx/arch/arm/src/bk7258/bk7258_start.c（调用 arm_boardinitialize） */
 }
