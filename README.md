@@ -94,6 +94,20 @@ bash contest2026_441_buzhidaojiaoshenmemingzi/scripts/build.sh nsh -j2
 bash scripts/package.sh nsh
 ```
 
+CP/AP 产品路线在组合前还必须检查 AP ELF 和原始二进制：
+
+```bash
+python3 scripts/verify_r1_ap_image.py \
+  --elf path/to/nuttx \
+  --bin path/to/nuttx.bin
+```
+
+该检查不仅看已写入镜像的段，还检查 `_eheap`、`_estack` 等运行期边界，防止 AP
+空闲堆在运行后侵入 CP RAM。检查通过不代表已经完成实机适配，只表示镜像满足
+当前 R1 CP/AP 地址契约。
+如将来调整 AP 分区，`--flash-size` 传入的是去除 34/32 CRC 编码开销后的原始
+XIP 容量，不是分区表中记录的物理容量。
+
 产物固定发布到 `out/bk7258-r1/nsh/`；切换应用配置时使用
 `scripts/package.sh app`，发布到相邻的 `app/` 目录。两个 profile 使用独立目录，
 目录内文件名保持不变。
