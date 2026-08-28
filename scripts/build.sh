@@ -3,7 +3,7 @@
 
 set -eu
 
-repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+repo_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 workspace_dir=$(dirname "$repo_dir")
 
 profile=${1:-nsh}

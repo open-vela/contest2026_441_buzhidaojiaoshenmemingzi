@@ -31,6 +31,7 @@ esac
 
 nuttx_bin="$build_dir/nuttx.bin"
 repack="$repo_dir/board/bk7258-r1/tools/repack.py"
+verify="$repo_dir/scripts/verify_r1_cpu0_image.py"
 publish_dir="$workspace_dir/out/bk7258-r1/$profile"
 work_dir="$publish_dir/repack-work"
 image_name=bk7258-r1-openvela-all-app.bin
@@ -44,6 +45,13 @@ fi
 
 mkdir -p "$publish_dir"
 python3 "$repack" --nuttx-bin "$nuttx_bin" --output-dir "$work_dir"
+python3 "$verify" \
+  --nuttx-bin "$nuttx_bin" \
+  --encoded-app "$work_dir/app_uart_2M.1220.bin" \
+  --final-image "$work_dir/all-app-openvela.bin" \
+  --packed-bootloader "$work_dir/bootloader.bin" \
+  --source-bootloader \
+  "$workspace_dir/beken_reference/sdk/bk_aidk/bk_avdk/bk_idk/components/bk_libs/bk7258/bootloader/normal_bootloader/bootloader.bin"
 
 cp "$work_dir/all-app-openvela.bin" "$publish_dir/$image_name.tmp"
 mv "$publish_dir/$image_name.tmp" "$publish_dir/$image_name"
