@@ -32,3 +32,20 @@ config CONTEST2026_441_VISION_BADGE_RESULT_BUFFER_SIZE
 	range 4096 65536
 
 endif
+
+config LVX_USE_DEMO_CONTEST2026_441_R1_KEYLED
+	bool "Contest 2026 team 441 R1 key/LED test"
+	default n
+	depends on ARCH_BUTTONS && ARCH_HAVE_LEDS
+	---help---
+		Enable the r1keyled NSH command used to verify the R1 button and LED
+		GPIO mapping by polling.  It is a bring-up diagnostic, not a permanent
+		background service.
+
+if LVX_USE_DEMO_CONTEST2026_441_R1_KEYLED
+
+config CONTEST2026_441_R1_KEYLED_STACKSIZE
+	int "R1 key/LED test stack size"
+	default 2048
+
+endif

@@ -4,4 +4,6 @@
 
 ifneq ($(CONFIG_LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE),)
 CONFIGURED_APPS += $(APPDIR)/packages/demos/contest2026_441_vision_badge
+else ifneq ($(CONFIG_LVX_USE_DEMO_CONTEST2026_441_R1_KEYLED),)
+CONFIGURED_APPS += $(APPDIR)/packages/demos/contest2026_441_vision_badge
 endif
