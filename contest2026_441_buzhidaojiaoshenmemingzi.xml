@@ -8,9 +8,29 @@
   -->
   <include name="openvela.xml"/>
 
+  <!--
+    BK7258 vendor libraries used by the OpenVela CP/AP BSP.  The revision is
+    intentionally pinned so a later SDK update cannot silently change the
+    binary ABI or the Flash/RAM contract.
+  -->
+  <project path="vendor/beken/bk_avdk_smp"
+           name="Embracecactus/bk_avdk_smp"
+           remote="git"
+           revision="cb080de1655d579c7593ecf504c440997c4c137b"
+           upstream="refs/heads/openvela/v3.1.1.9"
+           sync-c="true"
+           clone-depth="1"
+           groups="bk7258-sdk"/>
+
   <project path="contest2026_441_buzhidaojiaoshenmemingzi" name="contest2026_441_buzhidaojiaoshenmemingzi">
     <linkfile src="app/vision_badge" dest="packages/demos/contest2026_441_vision_badge"/>
+    <linkfile src="app/bsp_diag" dest="apps/system/contest2026_441_bsp_diag"/>
     <linkfile src="board/bk7258-r1"
               dest="vendor/beken/boards/bk7258/bk7258-r1"/>
+    <linkfile src="chips/bk7258" dest="vendor/beken/chips/bk7258"/>
+    <linkfile src="boards/bk7258" dest="vendor/beken/boards/bk7258"/>
+    <linkfile src="nuttx" dest="vendor/beken/nuttx"/>
+    <linkfile src="tools/bk7258"
+              dest="vendor/openvela/tools/contest2026_441_bk7258"/>
   </project>
 </manifest>

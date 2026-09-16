@@ -1,0 +1,2257 @@
+/****************************************************************************
+ * chips/bk7258/ap/bk7258_dvp.c
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * BK7258 AP DVP image-data lower-half.  The immutable v3.1.1.9 public DVP
+ * header describes a vendor-owned camera stream.  This file adapts its
+ * frame callback to NuttX imgdata_s without adding a character-device ABI.
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+
+#include <errno.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/time.h>
+
+#include <nuttx/arch.h>
+#include <nuttx/clock.h>
+#include <nuttx/irq.h>
+#include <nuttx/mutex.h>
+#include <nuttx/sched.h>
+#include <nuttx/spinlock.h>
+#include <nuttx/video/imgdata.h>
+#include <nuttx/video/video.h>
+#include <nuttx/wqueue.h>
+
+#include <components/dvp_camera.h>
+#include <driver/dma.h>
+#include <driver/h264.h>
+#include <driver/i2c.h>
+#include <driver/jpeg_enc.h>
+#include <driver/yuv_buf.h>
+#include <sdkconfig.h>
+
+#include <arch/chip/bk7258_dvp.h>
+#include <arch/chip/bk7258_i2c.h>
+#include <arch/chip/bk7258_pm.h>
+#ifdef CONFIG_BK7258_PSRAM
+#  include <arch/chip/bk7258_psram.h>
+#endif
+
+#include "bk7258_media_root.h"
+
+#define BK7258_DVP_MAX_FRAMES 8
+#define BK7258_DVP_EVENT_DEPTH 8
+#define BK7258_DVP_RESULT_ERROR 1
+#define BK7258_DVP_ALLOC_MAGIC 0x44565041u
+
+/* SDK v3.1.1.9 routes this DVP-owned PSRAM vote through its FreeRTOS
+ * MB_CHNL_PWC service.  NuttX owns that mailbox and keeps physical PSRAM
+ * alive with the CP-side AS_MEM lifetime instead.  Keep the raw ABI values
+ * local so this compatibility boundary does not expose vendor PM enums.
+ */
+
+#define BK7258_DVP_SDK_PSRAM_VIDP_JPEG_EN 4u
+#define BK7258_DVP_SDK_POWER_ON            0u
+#define BK7258_DVP_SDK_POWER_OFF           1u
+
+#ifdef CONFIG_BK7258_PSRAM
+struct bk7258_dvp_allocation_s
+{
+  FAR void *base;
+  uint32_t magic;
+};
+#endif
+
+struct bk7258_dvp_event_s
+{
+  FAR struct frame_buffer_t *frame;
+  uint8_t result;
+};
+
+struct bk7258_dvp_s
+{
+  struct imgdata_s data;
+  struct bk7258_dvp_config_s config;
+  bk_dvp_config_t sdk_config;
+  struct bk7258_dvp_i2c_write_s deferred_i2c[
+    BK7258_DVP_DEFERRED_I2C_WRITES];
+  uint8_t deferred_i2c_count;
+  camera_handle_t handle;
+
+  spinlock_t lock;
+  mutex_t api_lock;
+  struct work_s complete_work;
+  struct bk7258_dvp_event_s events[BK7258_DVP_EVENT_DEPTH];
+  struct frame_buffer_t frames[BK7258_DVP_MAX_FRAMES];
+  bool frame_busy[BK7258_DVP_MAX_FRAMES];
+  uint8_t event_head;
+  uint8_t event_count;
+  bool work_queued;
+  bool worker_running;
+  pid_t worker_tid;
+  bool stopping;
+  bool configured;
+  bool pm_clock_held;
+  bool pm_mclk_held;
+  bool pm_frequency_held;
+  bool i2c_driver_held;
+  bool suspended;
+  bool capture_active;
+  FAR uint8_t *next_buffer;
+  uint32_t next_size;
+  imgdata_capture_t capture_cb;
+  FAR void *capture_arg;
+};
+
+static struct bk7258_dvp_s g_bk7258_dvp =
+{
+  .api_lock = NXMUTEX_INITIALIZER,
+};
+
+static FAR struct frame_buffer_t *bk7258_dvp_frame_malloc(
+  image_format_t format, uint32_t size);
+static void bk7258_dvp_frame_complete(image_format_t format,
+                                      FAR struct frame_buffer_t *frame,
+                                      int result);
+static int bk7258_dvp_data_uninit(FAR struct imgdata_s *data);
+
+static int bk7258_dvp_i2c_driver_acquire(FAR struct bk7258_dvp_s *priv)
+{
+  int ret;
+
+  if (priv->i2c_driver_held)
+    {
+      return 0;
+    }
+
+  ret = bk7258_i2c_driver_acquire();
+  if (ret == 0)
+    {
+      priv->i2c_driver_held = true;
+    }
+
+  return ret;
+}
+
+static int bk7258_dvp_i2c_driver_release(FAR struct bk7258_dvp_s *priv)
+{
+  int ret;
+
+  if (!priv->i2c_driver_held)
+    {
+      return 0;
+    }
+
+  ret = bk7258_i2c_driver_release();
+  if (ret == 0)
+    {
+      priv->i2c_driver_held = false;
+    }
+
+  return ret;
+}
+
+static const bk_dvp_callback_t g_bk7258_dvp_callback =
+{
+  .malloc = bk7258_dvp_frame_malloc,
+  .complete = bk7258_dvp_frame_complete,
+};
+
+static int bk7258_dvp_error(bk_err_t error)
+{
+  switch (error)
+    {
+      case BK_OK:
+        return 0;
+
+      case BK_ERR_PARAM:
+      case BK_ERR_NULL_PARAM:
+        return -EINVAL;
+
+      case BK_ERR_NO_MEM:
+        return -ENOMEM;
+
+      case BK_ERR_TIMEOUT:
+        return -ETIMEDOUT;
+
+      case BK_ERR_BUSY:
+      case BK_ERR_IN_PROGRESS:
+        return -EBUSY;
+
+      case BK_ERR_NOT_SUPPORT:
+        return -ENOTSUP;
+
+      case BK_ERR_NO_DEV:
+      case BK_ERR_NOT_FOUND:
+        return -ENODEV;
+
+      case BK_ERR_SHUT_DOWN:
+        return -ESHUTDOWN;
+
+      default:
+        /* BK_FAIL and module-specific vendor errors are not errno values. */
+        return -EIO;
+    }
+}
+
+#ifdef CONFIG_BK7258_DVP_BOARD_GLUE
+extern bk_err_t __real_bk_i2c_init_v2(i2c_id_t id,
+                                      FAR const i2c_config_t *config);
+extern bk_err_t __real_bk_i2c_deinit_v2(i2c_id_t id);
+extern bk_err_t __real_bk_i2c_memory_read_v2(
+  i2c_id_t id, FAR const i2c_mem_param_t *param);
+extern bk_err_t __real_bk_i2c_memory_write_v2(
+  i2c_id_t id, FAR const i2c_mem_param_t *param);
+extern bk_err_t __real_bk_pm_module_vote_psram_ctrl(
+  uint32_t module, uint32_t power_state);
+extern void __real_dvp_camera_mclk_enable(mclk_freq_t mclk);
+
+bk_err_t __wrap_bk_pm_module_vote_psram_ctrl(
+  uint32_t module, uint32_t power_state)
+{
+  bk_err_t ret;
+
+  if (module == BK7258_DVP_SDK_PSRAM_VIDP_JPEG_EN &&
+      (power_state == BK7258_DVP_SDK_POWER_ON ||
+       power_state == BK7258_DVP_SDK_POWER_OFF))
+    {
+#ifdef CONFIG_BK7258_PSRAM
+      /* The board allocated every DVP frame from the project media slab
+       * before bk_dvp_open(), so an ON vote is valid only while that CP-owned
+       * PSRAM lifetime is already confirmed.  OFF deliberately leaves AS_MEM
+       * ownership unchanged; another AP service may still use PSRAM.
+       */
+
+      ret = power_state == BK7258_DVP_SDK_POWER_ON &&
+            !bk7258_psram_ready() ? BK_FAIL : BK_OK;
+#else
+      ret = power_state == BK7258_DVP_SDK_POWER_ON ? BK_FAIL : BK_OK;
+#endif
+
+      return ret;
+    }
+
+  ret = __real_bk_pm_module_vote_psram_ctrl(module, power_state);
+
+  return ret;
+}
+
+static FAR const struct bk7258_dvp_i2c_ops_s *
+bk7258_dvp_board_i2c(i2c_id_t id)
+{
+  FAR const struct bk7258_dvp_binding_s *binding =
+    g_bk7258_dvp.config.binding;
+
+  if (binding == NULL || binding->i2c == NULL ||
+      (unsigned int)id != binding->i2c_bus)
+    {
+      return NULL;
+    }
+
+  return binding->i2c;
+}
+
+static bk_err_t bk7258_dvp_board_i2c_result(int ret)
+{
+  if (ret == 0)
+    {
+      return BK_OK;
+    }
+
+  if (ret == -EBUSY)
+    {
+      return BK_ERR_I2C_SM_BUS_BUSY;
+    }
+
+  if (ret == -ETIMEDOUT)
+    {
+      return BK_ERR_I2C_ACK_TIMEOUT;
+    }
+
+  return BK_FAIL;
+}
+
+static bk_err_t bk7258_dvp_board_i2c_transfer(
+  i2c_id_t id, FAR const i2c_mem_param_t *param, bool read)
+{
+  FAR const struct bk7258_dvp_binding_s *binding =
+    g_bk7258_dvp.config.binding;
+  FAR const struct bk7258_dvp_i2c_ops_s *ops =
+    bk7258_dvp_board_i2c(id);
+  struct bk7258_dvp_i2c_transfer_s transfer;
+  int ret;
+
+  if (ops == NULL)
+    {
+      return read ? __real_bk_i2c_memory_read_v2(id, param) :
+                    __real_bk_i2c_memory_write_v2(id, param);
+    }
+
+  if (param == NULL || param->data == NULL || param->data_size == 0)
+    {
+      return BK_ERR_PARAM;
+    }
+
+  if (param->mem_addr_size == I2C_MEM_ADDR_SIZE_8BIT)
+    {
+      transfer.memory_address_bytes = 1u;
+    }
+  else if (param->mem_addr_size == I2C_MEM_ADDR_SIZE_16BIT)
+    {
+      transfer.memory_address_bytes = 2u;
+    }
+  else
+    {
+      return BK_ERR_PARAM;
+    }
+
+  transfer.address = param->dev_addr;
+  transfer.memory_address = param->mem_addr;
+  transfer.buffer = param->data;
+  transfer.length = param->data_size;
+  if (read)
+    {
+      ret = ops->read == NULL ? -ENOSYS :
+            ops->read(binding->arg, &transfer);
+    }
+  else
+    {
+      ret = ops->write == NULL ? -ENOSYS :
+            ops->write(binding->arg, &transfer);
+    }
+
+  return bk7258_dvp_board_i2c_result(ret);
+}
+
+bk_err_t __wrap_bk_i2c_init_v2(i2c_id_t id,
+                                FAR const i2c_config_t *config)
+{
+  FAR const struct bk7258_dvp_binding_s *binding =
+    g_bk7258_dvp.config.binding;
+  FAR const struct bk7258_dvp_i2c_ops_s *ops =
+    bk7258_dvp_board_i2c(id);
+
+  if (ops == NULL)
+    {
+      return __real_bk_i2c_init_v2(id, config);
+    }
+
+  return bk7258_dvp_board_i2c_result(
+    ops->initialize == NULL ? 0 : ops->initialize(binding->arg));
+}
+
+bk_err_t __wrap_bk_i2c_deinit_v2(i2c_id_t id)
+{
+  FAR const struct bk7258_dvp_binding_s *binding =
+    g_bk7258_dvp.config.binding;
+  FAR const struct bk7258_dvp_i2c_ops_s *ops =
+    bk7258_dvp_board_i2c(id);
+
+  if (ops == NULL)
+    {
+      return __real_bk_i2c_deinit_v2(id);
+    }
+
+  return bk7258_dvp_board_i2c_result(
+    ops->uninitialize == NULL ? 0 : ops->uninitialize(binding->arg));
+}
+
+bk_err_t __wrap_bk_i2c_memory_read_v2(
+  i2c_id_t id, FAR const i2c_mem_param_t *param)
+{
+  return bk7258_dvp_board_i2c_transfer(id, param, true);
+}
+
+bk_err_t __wrap_bk_i2c_memory_write_v2(
+  i2c_id_t id, FAR const i2c_mem_param_t *param)
+{
+  return bk7258_dvp_board_i2c_transfer(id, param, false);
+}
+
+void __wrap_dvp_camera_mclk_enable(mclk_freq_t mclk)
+{
+  FAR const struct bk7258_dvp_binding_s *binding =
+    g_bk7258_dvp.config.binding;
+
+  __real_dvp_camera_mclk_enable(mclk);
+  if (binding != NULL && binding->mclk_started != NULL)
+    {
+      binding->mclk_started(binding->arg);
+    }
+
+}
+#endif /* CONFIG_BK7258_DVP_BOARD_GLUE */
+
+#ifdef CONFIG_BK7258_DVP_H264_COMPAT
+extern bk_err_t __real_bk_h264_encode_enable(void);
+extern bk_err_t __real_bk_yuv_buf_start(yuv_mode_t work_mode);
+extern int __real_video_register(FAR const char *devpath,
+                                 FAR struct v4l2_s *ctx);
+extern int32_t __real_sys_drv_core_intr_group2_enable(uint32_t core_id,
+                                                      uint32_t mask);
+extern int __real_dvp_camera_i2c_write_uint8(uint8_t addr, uint8_t reg,
+                                             uint8_t value);
+
+static bool g_bk7258_dvp_h264_opening;
+static bool g_bk7258_dvp_h264_yuv_deferred;
+static bool g_bk7258_dvp_h264_encode_deferred;
+static bool g_bk7258_dvp_yuv_irq_deferred;
+static bool g_bk7258_dvp_h264_irq_deferred;
+static uint32_t g_bk7258_dvp_h264_irq_core;
+static FAR const struct v4l2_ops_s *g_bk7258_dvp_capture_vops;
+static struct v4l2_ops_s g_bk7258_dvp_h264_vops;
+
+#define BK7258_H264_GROUP2_MASK (1u << (46u - 32u))
+#define BK7258_YUVB_GROUP2_MASK (1u << (58u - 32u))
+
+/* The pinned NuttX capture upper-half publishes V4L2_PIX_FMT_H264 in its
+ * public headers, but capture_try_fmt() does not yet accept it.  Keep the
+ * user-visible ABI standard and translate only at the v4l2 capture boundary
+ * to the existing compressed imgdata token consumed by this lower-half.
+ */
+
+static bool bk7258_dvp_h264_format_alias(FAR struct v4l2_format *format)
+{
+  if (format != NULL && format->fmt.pix.pixelformat == V4L2_PIX_FMT_H264)
+    {
+      format->fmt.pix.pixelformat = V4L2_PIX_FMT_JPEG_WITH_SUBIMG;
+      return true;
+    }
+
+  return false;
+}
+
+static int bk7258_dvp_h264_g_fmt(FAR struct file *filep,
+                                 FAR struct v4l2_format *format)
+{
+  int ret = g_bk7258_dvp_capture_vops->g_fmt(filep, format);
+
+  if (ret == OK && format->fmt.pix.pixelformat ==
+                   V4L2_PIX_FMT_JPEG_WITH_SUBIMG)
+    {
+      format->fmt.pix.pixelformat = V4L2_PIX_FMT_H264;
+    }
+
+  return ret;
+}
+
+static int bk7258_dvp_h264_s_fmt(FAR struct file *filep,
+                                 FAR struct v4l2_format *format)
+{
+  bool aliased = bk7258_dvp_h264_format_alias(format);
+  int ret = g_bk7258_dvp_capture_vops->s_fmt(filep, format);
+
+  if (aliased)
+    {
+      format->fmt.pix.pixelformat = V4L2_PIX_FMT_H264;
+    }
+
+  return ret;
+}
+
+static int bk7258_dvp_h264_try_fmt(FAR struct file *filep,
+                                   FAR struct v4l2_format *format)
+{
+  bool aliased = bk7258_dvp_h264_format_alias(format);
+  int ret = g_bk7258_dvp_capture_vops->try_fmt(filep, format);
+
+  if (aliased)
+    {
+      format->fmt.pix.pixelformat = V4L2_PIX_FMT_H264;
+    }
+
+  return ret;
+}
+
+static int bk7258_dvp_h264_enum_fmt(FAR struct file *filep,
+                                    FAR struct v4l2_fmtdesc *format)
+{
+  int ret = g_bk7258_dvp_capture_vops->enum_fmt(filep, format);
+
+  if (ret == OK && format->pixelformat == V4L2_PIX_FMT_JPEG_WITH_SUBIMG)
+    {
+      format->pixelformat = V4L2_PIX_FMT_H264;
+      strncpy((FAR char *)format->description, "H264",
+              sizeof(format->description));
+      format->description[sizeof(format->description) - 1u] = '\0';
+    }
+
+  return ret;
+}
+
+static int bk7258_dvp_h264_enum_frminterval(
+  FAR struct file *filep, FAR struct v4l2_frmivalenum *interval)
+{
+  bool aliased = interval != NULL &&
+                 interval->pixel_format == V4L2_PIX_FMT_H264;
+  int ret;
+
+  if (aliased)
+    {
+      interval->pixel_format = V4L2_PIX_FMT_JPEG_WITH_SUBIMG;
+    }
+
+  ret = g_bk7258_dvp_capture_vops->enum_frminterval(filep, interval);
+  if (aliased)
+    {
+      interval->pixel_format = V4L2_PIX_FMT_H264;
+    }
+
+  return ret;
+}
+
+static int bk7258_dvp_h264_enum_frmsize(
+  FAR struct file *filep, FAR struct v4l2_frmsizeenum *size)
+{
+  bool aliased = size != NULL && size->pixel_format == V4L2_PIX_FMT_H264;
+  int ret;
+
+  if (aliased)
+    {
+      size->pixel_format = V4L2_PIX_FMT_JPEG_WITH_SUBIMG;
+    }
+
+  ret = g_bk7258_dvp_capture_vops->enum_frmsize(filep, size);
+  if (aliased)
+    {
+      size->pixel_format = V4L2_PIX_FMT_H264;
+    }
+
+  return ret;
+}
+
+int __wrap_video_register(FAR const char *devpath, FAR struct v4l2_s *ctx)
+{
+  FAR const struct v4l2_ops_s *original;
+  int ret;
+
+  if (devpath == NULL || ctx == NULL || ctx->vops == NULL ||
+      strcmp(devpath, "/dev/video0") != 0)
+    {
+      return __real_video_register(devpath, ctx);
+    }
+
+  original = ctx->vops;
+  g_bk7258_dvp_capture_vops = original;
+  memcpy(&g_bk7258_dvp_h264_vops, original,
+         sizeof(g_bk7258_dvp_h264_vops));
+  g_bk7258_dvp_h264_vops.g_fmt = bk7258_dvp_h264_g_fmt;
+  g_bk7258_dvp_h264_vops.s_fmt = bk7258_dvp_h264_s_fmt;
+  g_bk7258_dvp_h264_vops.try_fmt = bk7258_dvp_h264_try_fmt;
+  g_bk7258_dvp_h264_vops.enum_fmt = bk7258_dvp_h264_enum_fmt;
+  g_bk7258_dvp_h264_vops.enum_frminterval =
+    bk7258_dvp_h264_enum_frminterval;
+  g_bk7258_dvp_h264_vops.enum_frmsize = bk7258_dvp_h264_enum_frmsize;
+  ctx->vops = &g_bk7258_dvp_h264_vops;
+
+  ret = __real_video_register(devpath, ctx);
+  if (ret < 0)
+    {
+      ctx->vops = original;
+      g_bk7258_dvp_capture_vops = NULL;
+    }
+
+  return ret;
+}
+
+int32_t __wrap_sys_drv_core_intr_group2_enable(uint32_t core_id,
+                                               uint32_t mask)
+{
+  if (g_bk7258_dvp_h264_opening && mask == BK7258_H264_GROUP2_MASK)
+    {
+      g_bk7258_dvp_h264_irq_deferred = true;
+      g_bk7258_dvp_h264_irq_core = core_id;
+      return 0;
+    }
+
+  return __real_sys_drv_core_intr_group2_enable(core_id, mask);
+}
+
+bk_err_t __wrap_bk_yuv_buf_start(yuv_mode_t work_mode)
+{
+  if (g_bk7258_dvp_h264_opening && work_mode == H264_MODE)
+    {
+      g_bk7258_dvp_h264_yuv_deferred = true;
+      return BK_OK;
+    }
+
+  return __real_bk_yuv_buf_start(work_mode);
+}
+
+bk_err_t __wrap_bk_h264_encode_enable(void)
+{
+  if (g_bk7258_dvp_h264_opening)
+    {
+      g_bk7258_dvp_h264_encode_deferred = true;
+      return BK_OK;
+    }
+
+  return __real_bk_h264_encode_enable();
+}
+
+int __wrap_dvp_camera_i2c_write_uint8(uint8_t addr, uint8_t reg,
+                                      uint8_t value)
+{
+  FAR const struct bk7258_dvp_binding_s *binding =
+    g_bk7258_dvp.config.binding;
+  struct bk7258_dvp_i2c_write_s write;
+  int action = BK7258_DVP_I2C_WRITE_PASS;
+
+  write.addr = addr;
+  write.reg = reg;
+  write.value = value;
+  write.immediate_value = value;
+
+  if (g_bk7258_dvp_h264_opening && binding != NULL &&
+      binding->i2c_write != NULL)
+    {
+      action = binding->i2c_write(binding->arg, &write);
+      if (action < 0)
+        {
+          return action;
+        }
+
+      if (action == BK7258_DVP_I2C_WRITE_DEFER)
+        {
+          if (g_bk7258_dvp.deferred_i2c_count >=
+              BK7258_DVP_DEFERRED_I2C_WRITES)
+            {
+              return -ENOMEM;
+            }
+
+          g_bk7258_dvp.deferred_i2c[g_bk7258_dvp.deferred_i2c_count++] =
+            write;
+
+          /* Keep the sensor output disabled until the SDK has completed its
+           * first H.264 bring-up sequence.  The original write is replayed
+           * through the real SDK symbol once open returns. */
+
+          return __real_dvp_camera_i2c_write_uint8(
+            addr, reg, write.immediate_value);
+        }
+
+      if (action != BK7258_DVP_I2C_WRITE_PASS)
+        {
+          return -EINVAL;
+        }
+    }
+
+  return __real_dvp_camera_i2c_write_uint8(addr, reg, value);
+}
+#endif
+
+#ifdef CONFIG_BK7258_DVP_H264_COMPAT
+extern int32_t __real_sys_drv_int_group2_enable(uint32_t mask);
+
+int32_t __wrap_sys_drv_int_group2_enable(uint32_t mask)
+{
+  if (g_bk7258_dvp_h264_opening && mask == BK7258_YUVB_GROUP2_MASK)
+    {
+      g_bk7258_dvp_yuv_irq_deferred = true;
+      return 0;
+    }
+
+  return __real_sys_drv_int_group2_enable(mask);
+}
+#endif
+
+static int bk7258_dvp_pm_release(FAR struct bk7258_dvp_s *priv);
+
+static int bk7258_dvp_pm_acquire(FAR struct bk7258_dvp_s *priv)
+{
+  enum bk7258_pm_clock_e video_clock;
+  int ret;
+
+  if (priv->sdk_config.clk_source != MCLK_24M)
+    {
+      return -ENOTSUP;
+    }
+
+  /* v3.1.1.9 YUV requests 480M, then JPEG overwrites the same SDK client
+   * with 320M.  Keep the complete MJPEG pipeline's requirement separately:
+   * the camera owns it before SDK open until SDK close has stopped DMA and
+   * joined its thread.  Codec init/deinit votes must not lower this floor.
+   */
+
+  if (priv->sdk_config.img_format == IMAGE_MJPEG &&
+      !priv->pm_frequency_held)
+    {
+      ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CAMERA,
+                                     BK7258_PM_OPP_480M);
+      if (ret < 0)
+        {
+          return ret;
+        }
+
+      priv->pm_frequency_held = true;
+    }
+
+  video_clock = priv->sdk_config.img_format == IMAGE_H264 ?
+                BK7258_PM_CLOCK_H264 : BK7258_PM_CLOCK_JPEG;
+  if (!priv->pm_clock_held)
+    {
+      ret = bk7258_pm_clock_get(video_clock);
+      if (ret < 0)
+        {
+          goto errout;
+        }
+
+      priv->pm_clock_held = true;
+    }
+
+  if (!priv->pm_mclk_held)
+    {
+      ret = bk7258_pm_clock_get(BK7258_PM_CLOCK_CAMERA_MCLK_24M);
+      if (ret < 0)
+        {
+          goto errout;
+        }
+
+      priv->pm_mclk_held = true;
+    }
+
+  return 0;
+
+errout:
+  (void)bk7258_dvp_pm_release(priv);
+  return ret;
+}
+
+static int bk7258_dvp_pm_release(FAR struct bk7258_dvp_s *priv)
+{
+  enum bk7258_pm_clock_e video_clock;
+  int result = 0;
+  int ret;
+
+  video_clock = priv->sdk_config.img_format == IMAGE_H264 ?
+                BK7258_PM_CLOCK_H264 : BK7258_PM_CLOCK_JPEG;
+
+  if (priv->pm_mclk_held)
+    {
+      ret = bk7258_pm_clock_put(BK7258_PM_CLOCK_CAMERA_MCLK_24M);
+      if (ret >= 0)
+        {
+          priv->pm_mclk_held = false;
+        }
+      else
+        {
+          result = ret;
+        }
+    }
+
+  if (priv->pm_clock_held)
+    {
+      ret = bk7258_pm_clock_put(video_clock);
+      if (ret >= 0)
+        {
+          priv->pm_clock_held = false;
+        }
+      else if (result >= 0)
+        {
+          result = ret;
+        }
+    }
+
+  if (priv->pm_frequency_held)
+    {
+      ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_CAMERA,
+                                     BK7258_PM_OPP_DEFAULT);
+      if (ret >= 0)
+        {
+          priv->pm_frequency_held = false;
+        }
+      else if (result >= 0)
+        {
+          result = ret;
+        }
+    }
+
+  return result;
+}
+
+static inline FAR struct bk7258_dvp_s *bk7258_dvp_from_data(
+  FAR struct imgdata_s *data)
+{
+  return (FAR struct bk7258_dvp_s *)((uintptr_t)data -
+                                     offsetof(struct bk7258_dvp_s, data));
+}
+
+static int bk7258_dvp_frame_index(FAR struct bk7258_dvp_s *priv,
+                                  FAR struct frame_buffer_t *frame)
+{
+  uint8_t i;
+
+  for (i = 0; i < priv->config.frame_count; i++)
+    {
+      if (&priv->frames[i] == frame)
+        {
+          return i;
+        }
+    }
+
+  return -1;
+}
+
+static void bk7258_dvp_release_frame_locked(FAR struct bk7258_dvp_s *priv,
+                                            FAR struct frame_buffer_t *frame)
+{
+  int index = bk7258_dvp_frame_index(priv, frame);
+
+  if (index >= 0)
+    {
+      priv->frame_busy[index] = false;
+    }
+}
+
+static void bk7258_dvp_drop_events_locked(FAR struct bk7258_dvp_s *priv)
+{
+  while (priv->event_count != 0)
+    {
+      FAR struct bk7258_dvp_event_s *event =
+        &priv->events[priv->event_head];
+
+      bk7258_dvp_release_frame_locked(priv, event->frame);
+      priv->event_head = (uint8_t)((priv->event_head + 1) %
+                                   BK7258_DVP_EVENT_DEPTH);
+      priv->event_count--;
+    }
+}
+
+static void bk7258_dvp_schedule_failed(FAR struct bk7258_dvp_s *priv)
+{
+  irqstate_t flags = spin_lock_irqsave(&priv->lock);
+
+  priv->work_queued = false;
+  priv->worker_running = false;
+  priv->worker_tid = (pid_t)-1;
+  bk7258_dvp_drop_events_locked(priv);
+  spin_unlock_irqrestore(&priv->lock, flags);
+}
+
+static bool bk7258_dvp_is_current_worker(FAR struct bk7258_dvp_s *priv)
+{
+  irqstate_t flags;
+  bool current;
+  pid_t tid = nxsched_gettid();
+
+  flags = spin_lock_irqsave(&priv->lock);
+  current = priv->worker_running && priv->worker_tid == tid;
+  spin_unlock_irqrestore(&priv->lock, flags);
+  return current;
+}
+
+static void bk7258_dvp_timestamp(FAR struct timeval *tv)
+{
+  struct timespec ts;
+
+  /* The SDK timestamp is a 32-bit, build-dependent counter which can wrap
+   * in roughly 71 minutes.  It is intentionally not exposed as a V4L2
+   * timestamp; use the NuttX system clock for the upper-half ABI. */
+
+  clock_systime_timespec(&ts);
+  tv->tv_sec = ts.tv_sec;
+  tv->tv_usec = ts.tv_nsec / 1000;
+}
+
+static void bk7258_dvp_complete_worker(FAR void *arg)
+{
+  FAR struct bk7258_dvp_s *priv = arg;
+  irqstate_t state_flags;
+
+  state_flags = spin_lock_irqsave(&priv->lock);
+  priv->worker_running = true;
+  priv->worker_tid = nxsched_gettid();
+  spin_unlock_irqrestore(&priv->lock, state_flags);
+
+  for (;;)
+    {
+      struct bk7258_dvp_event_s event;
+      FAR uint8_t *target;
+      FAR void *capture_arg;
+      imgdata_capture_t capture_cb;
+      uint32_t target_size;
+      uint32_t length;
+      struct timeval tv;
+      uint8_t result;
+      irqstate_t flags;
+
+      flags = spin_lock_irqsave(&priv->lock);
+      if (priv->event_count == 0)
+        {
+          priv->work_queued = false;
+          priv->worker_running = false;
+          priv->worker_tid = (pid_t)-1;
+          spin_unlock_irqrestore(&priv->lock, flags);
+          return;
+        }
+
+      event = priv->events[priv->event_head];
+      priv->event_head = (uint8_t)((priv->event_head + 1) %
+                                   BK7258_DVP_EVENT_DEPTH);
+      priv->event_count--;
+      target = priv->next_buffer;
+      target_size = priv->next_size;
+      priv->next_buffer = NULL;
+      priv->next_size = 0;
+      capture_cb = priv->capture_active ? priv->capture_cb : NULL;
+      capture_arg = priv->capture_arg;
+      spin_unlock_irqrestore(&priv->lock, flags);
+
+      result = event.result;
+      length = event.frame->length;
+      if (capture_cb == NULL || target == NULL || result != 0)
+        {
+          length = 0;
+        }
+      else if (length > event.frame->size || length > target_size ||
+               event.frame->frame == NULL)
+        {
+          result = BK7258_DVP_RESULT_ERROR;
+          length = 0;
+        }
+      else
+        {
+          memcpy(target, event.frame->frame, length);
+        }
+
+      bk7258_dvp_timestamp(&tv);
+      if (capture_cb != NULL)
+        {
+          /* This is the only path that calls the NuttX upper-half callback;
+           * the SDK callback itself only enqueues a bounded event. */
+          (void)capture_cb(result, length, &tv, capture_arg);
+        }
+
+      flags = spin_lock_irqsave(&priv->lock);
+      bk7258_dvp_release_frame_locked(priv, event.frame);
+      spin_unlock_irqrestore(&priv->lock, flags);
+    }
+}
+
+static int bk7258_dvp_stop_stream(FAR struct bk7258_dvp_s *priv)
+{
+  irqstate_t flags;
+  bool need_suspend;
+  bool current_worker;
+  int ret;
+  int cancel_ret = 0;
+
+  ret = nxmutex_lock(&priv->api_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  flags = spin_lock_irqsave(&priv->lock);
+  if (priv->handle == NULL)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      nxmutex_unlock(&priv->api_lock);
+      return 0;
+    }
+
+  if (priv->stopping)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      nxmutex_unlock(&priv->api_lock);
+
+      /* A callback may synchronously call stop_capture while an external
+       * stop is already quiescing the stream.  The callback must not wait
+       * for itself, while an external caller must still wait for the worker
+       * before returning. */
+      if (bk7258_dvp_is_current_worker(priv))
+        {
+          return 0;
+        }
+
+      ret = work_cancel_sync(LPWORK, &priv->complete_work);
+      if (ret == -ENOENT)
+        {
+          ret = 0;
+        }
+      /* The first stop owner performs the final queue drain and clears
+       * stopping.  A concurrent external stop must not release that state
+       * early and allow a new start/resume to cross the owner cleanup. */
+      return ret;
+    }
+
+  priv->stopping = true;
+  priv->capture_active = false;
+  priv->capture_cb = NULL;
+  priv->capture_arg = NULL;
+  /* JPEG close is synchronized by the SDK's live VSYNC handler.  Suspending
+   * here asserts JPEG/YUV reset before that handshake and leaves the SDK DMA
+   * and frame owner alive.  Stop delivery and drain our worker below, then
+   * let bk_dvp_close() stop the JPEG pipeline in its documented order.  An
+   * open JPEG handle may keep its private stream until close or a new QBUF.
+   */
+
+  need_suspend = !priv->suspended &&
+                 priv->sdk_config.img_format != IMAGE_MJPEG;
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  if (need_suspend)
+    {
+      ret = bk7258_dvp_error(bk_dvp_suspend(priv->handle));
+      if (ret == 0)
+        {
+          priv->suspended = true;
+        }
+    }
+
+  /* Do not hold api_lock while waiting for the work queue.  A capture
+   * callback is allowed to call stop_capture synchronously. */
+  nxmutex_unlock(&priv->api_lock);
+
+  current_worker = bk7258_dvp_is_current_worker(priv);
+  if (!current_worker)
+    {
+      cancel_ret = work_cancel_sync(LPWORK, &priv->complete_work);
+      if (cancel_ret == -ENOENT)
+        {
+          cancel_ret = 0;
+        }
+    }
+
+  if (ret == 0 && cancel_ret < 0)
+    {
+      ret = cancel_ret;
+    }
+
+  /* Reacquire only for the final bounded-queue cleanup and state release.
+   * If this is the work thread itself, leave work_queued for the worker's
+   * empty-queue exit path; synchronous self-cancel is never attempted. */
+  if (nxmutex_lock(&priv->api_lock) < 0)
+    {
+      return ret < 0 ? ret : -EINTR;
+    }
+  flags = spin_lock_irqsave(&priv->lock);
+  bk7258_dvp_drop_events_locked(priv);
+  if (!current_worker)
+    {
+      /* work_cancel_sync() owns the queued work after it returns.  Mirror
+       * that state in the wrapper so a later capture can schedule LPWORK
+       * again.  A callback stopping itself must leave these fields for the
+       * worker's normal empty-queue exit path. */
+
+      priv->work_queued = false;
+      priv->worker_running = false;
+      priv->worker_tid = (pid_t)-1;
+    }
+  priv->stopping = false;
+  spin_unlock_irqrestore(&priv->lock, flags);
+  nxmutex_unlock(&priv->api_lock);
+  return ret;
+}
+
+static FAR struct frame_buffer_t *bk7258_dvp_frame_malloc(
+  image_format_t format, uint32_t size)
+{
+  FAR struct bk7258_dvp_s *priv = &g_bk7258_dvp;
+  irqstate_t flags;
+  uint8_t i;
+
+  flags = spin_lock_irqsave(&priv->lock);
+  for (i = 0; i < priv->config.frame_count; i++)
+    {
+      FAR const struct bk7258_dvp_frame_mem_s *memory =
+        &priv->config.frames[i];
+
+      if (!priv->frame_busy[i] && memory->addr != NULL &&
+          memory->size >= size)
+        {
+          FAR struct frame_buffer_t *frame = &priv->frames[i];
+
+          memset(frame, 0, sizeof(*frame));
+          frame->frame = memory->addr;
+          frame->size = memory->size;
+          frame->type = DVP_CAMERA;
+          frame->width = priv->sdk_config.width;
+          frame->height = priv->sdk_config.height;
+          frame->fmt = format == IMAGE_MJPEG ? PIXEL_FMT_JPEG :
+                       format == IMAGE_H264 ? PIXEL_FMT_H264 :
+                       PIXEL_FMT_UNKNOW;
+          priv->frame_busy[i] = true;
+          spin_unlock_irqrestore(&priv->lock, flags);
+          return frame;
+        }
+    }
+
+  spin_unlock_irqrestore(&priv->lock, flags);
+  return NULL;
+}
+
+static void bk7258_dvp_frame_complete(image_format_t format,
+                                      FAR struct frame_buffer_t *frame,
+                                      int result)
+{
+  FAR struct bk7258_dvp_s *priv = &g_bk7258_dvp;
+  irqstate_t flags;
+  bool queue_work = false;
+  int index;
+
+  (void)format;
+
+  flags = spin_lock_irqsave(&priv->lock);
+  index = bk7258_dvp_frame_index(priv, frame);
+  if (index < 0 || !priv->frame_busy[index] || !priv->capture_active ||
+      priv->stopping)
+    {
+      if (index >= 0)
+        {
+          priv->frame_busy[index] = false;
+        }
+      spin_unlock_irqrestore(&priv->lock, flags);
+      return;
+    }
+
+  if (priv->event_count >= BK7258_DVP_EVENT_DEPTH)
+    {
+      /* An ISR cannot wait for NuttX video consumption.  Drop this completed
+       * frame and return its descriptor to the bounded pool. */
+      priv->frame_busy[index] = false;
+      spin_unlock_irqrestore(&priv->lock, flags);
+      return;
+    }
+
+  priv->events[(priv->event_head + priv->event_count) %
+               BK7258_DVP_EVENT_DEPTH].frame = frame;
+  priv->events[(priv->event_head + priv->event_count) %
+               BK7258_DVP_EVENT_DEPTH].result = (uint8_t)result;
+  priv->event_count++;
+  if (!priv->work_queued)
+    {
+      priv->work_queued = true;
+      queue_work = true;
+    }
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  if (queue_work && work_queue(LPWORK, &priv->complete_work,
+                               bk7258_dvp_complete_worker, priv, 0) < 0)
+    {
+      bk7258_dvp_schedule_failed(priv);
+    }
+}
+
+static bool bk7258_dvp_format_supported(FAR struct bk7258_dvp_s *priv,
+                                         uint32_t format)
+{
+  if (priv->sdk_config.img_format == IMAGE_YUV)
+    {
+      return format == IMGDATA_PIX_FMT_YUYV ||
+             format == IMGDATA_PIX_FMT_UYVY;
+    }
+
+  if (priv->sdk_config.img_format == IMAGE_MJPEG)
+    {
+      return format == IMGDATA_PIX_FMT_JPEG;
+    }
+
+  if (priv->sdk_config.img_format == IMAGE_H264)
+    {
+      /* This NuttX revision publishes V4L2_PIX_FMT_H264 but its private
+       * V4L2-to-imgdata converter has no matching IMGDATA_PIX_FMT_H264.
+       * Unknown compressed formats reach a lower-half as the legacy
+       * JPEG_WITH_SUBIMG token.  Accept that token only when this instance
+       * was explicitly configured as IMAGE_H264; the public ABI remains
+       * standard V4L2 H.264 and no JPEG data is advertised or returned. */
+
+      return format == IMGDATA_PIX_FMT_JPEG_WITH_SUBIMG;
+    }
+
+  return false;
+}
+
+static uint32_t bk7258_dvp_fps_hz(frame_fps_t fps)
+{
+  switch (fps)
+    {
+      case FPS5:
+        return 5;
+      case FPS10:
+        return 10;
+      case FPS15:
+        return 15;
+      case FPS20:
+        return 20;
+      case FPS25:
+        return 25;
+      case FPS30:
+        return 30;
+      default:
+        return 0;
+    }
+}
+
+static int bk7258_dvp_make_sdk_config(
+  FAR const struct bk7258_dvp_sensor_config_s *sensor,
+  FAR bk_dvp_config_t *sdk)
+{
+  frame_fps_t fps;
+  uint16_t format;
+
+  if (sensor == NULL || sdk == NULL || sensor->width == 0 ||
+      sensor->height == 0 || sensor->i2c_frequency == 0 ||
+      sensor->mclk_hz != BK7258_DVP_MCLK_24MHZ)
+    {
+      return -EINVAL;
+    }
+
+  switch (sensor->data_width)
+    {
+      case BK7258_DVP_DATA_WIDTH_8:
+      case BK7258_DVP_DATA_WIDTH_10:
+      case BK7258_DVP_DATA_WIDTH_12:
+      case BK7258_DVP_DATA_WIDTH_16:
+        break;
+
+      default:
+        return -EINVAL;
+    }
+
+  switch (sensor->fps)
+    {
+      case 5:
+        fps = FPS5;
+        break;
+      case 10:
+        fps = FPS10;
+        break;
+      case 15:
+        fps = FPS15;
+        break;
+      case 20:
+        fps = FPS20;
+        break;
+      case 25:
+        fps = FPS25;
+        break;
+      case 30:
+        fps = FPS30;
+        break;
+      default:
+        return -ENOTSUP;
+    }
+
+  switch (sensor->format)
+    {
+      case BK7258_DVP_FORMAT_YUV:
+        format = IMAGE_YUV;
+        break;
+      case BK7258_DVP_FORMAT_MJPEG:
+        format = IMAGE_MJPEG;
+        break;
+      case BK7258_DVP_FORMAT_H264:
+        format = IMAGE_H264;
+        break;
+      default:
+        return -ENOTSUP;
+    }
+
+  memset(sdk, 0, sizeof(*sdk));
+  sdk->i2c_config.id = sensor->i2c_bus;
+  sdk->i2c_config.scl_pin = sensor->i2c_scl_pin;
+  sdk->i2c_config.sda_pin = sensor->i2c_sda_pin;
+  sdk->i2c_config.baud_rate = sensor->i2c_frequency;
+  sdk->reset_pin = sensor->reset_pin;
+  sdk->pwdn_pin = sensor->pwdn_pin;
+  sdk->io_config.data_width = (sensor_bits_width_t)sensor->data_width;
+  memcpy(sdk->io_config.data_pin, sensor->data_pin,
+         sizeof(sdk->io_config.data_pin));
+  sdk->io_config.vsync_pin = sensor->vsync_pin;
+  sdk->io_config.hsync_pin = sensor->hsync_pin;
+  sdk->io_config.xclk_pin = sensor->mclk_pin;
+  sdk->io_config.pclk_pin = sensor->pclk_pin;
+  sdk->clk_source = MCLK_24M;
+  sdk->width = sensor->width;
+  sdk->height = sensor->height;
+  sdk->fps = fps;
+  sdk->img_format = format;
+  return OK;
+}
+
+int bk7258_dvp_get_buffer_requirements(
+  FAR const struct bk7258_dvp_sensor_config_s *sensor,
+  FAR struct bk7258_dvp_buffer_requirements_s *requirements)
+{
+  bk_dvp_config_t sdk;
+  uint64_t frame_size;
+  uint64_t encode_size;
+  int ret;
+
+  if (requirements == NULL)
+    {
+      return -EINVAL;
+    }
+
+  ret = bk7258_dvp_make_sdk_config(sensor, &sdk);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (sdk.img_format == IMAGE_YUV)
+    {
+      frame_size = (uint64_t)sdk.width * sdk.height * 2u;
+      encode_size = 0u;
+    }
+  else if (sdk.img_format == IMAGE_H264)
+    {
+      frame_size = CONFIG_H264_FRAME_SIZE;
+      encode_size = (uint64_t)sdk.width * 32u * 2u;
+    }
+  else
+    {
+      frame_size = CONFIG_JPEG_FRAME_SIZE;
+      encode_size = (uint64_t)sdk.width * 16u * 2u;
+    }
+
+  if (frame_size == 0u || frame_size > UINT32_MAX ||
+      encode_size > UINT32_MAX)
+    {
+      return -EOVERFLOW;
+    }
+
+  requirements->frame_size = (uint32_t)frame_size;
+  requirements->encode_buffer_size = (uint32_t)encode_size;
+  return OK;
+}
+
+static int bk7258_dvp_validate_frame_setting(
+  FAR struct bk7258_dvp_s *priv, uint8_t nr_datafmts,
+  FAR imgdata_format_t *datafmts, FAR imgdata_interval_t *interval)
+{
+  if (nr_datafmts == 0 || nr_datafmts > 1 || datafmts == NULL)
+    {
+      return -EINVAL;
+    }
+
+  if (datafmts[IMGDATA_FMT_MAIN].width != priv->sdk_config.width ||
+      datafmts[IMGDATA_FMT_MAIN].height != priv->sdk_config.height ||
+      !bk7258_dvp_format_supported(priv,
+                                   datafmts[IMGDATA_FMT_MAIN].pixelformat))
+    {
+      return -ENOTSUP;
+    }
+
+  if (interval != NULL &&
+      (interval->numerator == 0 || interval->denominator == 0))
+    {
+      return -EINVAL;
+    }
+
+  if (interval != NULL &&
+      (uint64_t)bk7258_dvp_fps_hz((frame_fps_t)priv->sdk_config.fps) *
+      interval->numerator !=
+      interval->denominator)
+    {
+      return -ENOTSUP;
+    }
+
+  return 0;
+}
+
+static int bk7258_dvp_data_init(FAR struct imgdata_s *data)
+{
+  FAR struct bk7258_dvp_s *priv = bk7258_dvp_from_data(data);
+  irqstate_t flags;
+  bk_err_t error;
+  int ret;
+
+  ret = nxmutex_lock(&priv->api_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (priv->stopping)
+    {
+      nxmutex_unlock(&priv->api_lock);
+      return -EBUSY;
+    }
+
+  if (priv->handle != NULL)
+    {
+      nxmutex_unlock(&priv->api_lock);
+      return 0;
+    }
+
+  flags = spin_lock_irqsave(&priv->lock);
+  if (priv->work_queued || priv->worker_running)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      nxmutex_unlock(&priv->api_lock);
+      return -EBUSY;
+    }
+
+  memset(priv->frame_busy, 0, sizeof(priv->frame_busy));
+  priv->event_head = 0;
+  priv->event_count = 0;
+  priv->work_queued = false;
+  priv->capture_active = false;
+  priv->capture_cb = NULL;
+  priv->capture_arg = NULL;
+  priv->next_buffer = NULL;
+  priv->next_size = 0;
+  priv->stopping = false;
+  priv->worker_running = false;
+  priv->worker_tid = (pid_t)-1;
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  /* The SDK detector configures MCLK before its JPEG driver acquires that
+   * clock.  Acquire it explicitly through the project-owned CP clock service
+   * so the vendor detector observes the same prerequisite without bypassing
+   * the NuttX/CP ownership boundary. */
+
+  /* The SDK treats DMA, YUV buffer and JPEG encoder as AP-wide shared
+   * drivers.  NuttX does not call the vendor-wide initializer, so perform
+   * the same idempotent operations at this wrapper boundary.  Deliberately
+   * do not deinitialize them on camera close: LCD, I2S and other AP clients
+   * share their global state, channel pool or IRQs. */
+
+  if (priv->sdk_config.img_format == IMAGE_H264)
+    {
+      ret = bk7258_media_root_initialize(BK7258_MEDIA_ROOT_H264);
+    }
+  else
+    {
+      ret = bk7258_media_root_initialize(BK7258_MEDIA_ROOT_JPEG);
+    }
+  if (ret < 0)
+    {
+      nxmutex_unlock(&priv->api_lock);
+      return ret;
+    }
+
+  ret = bk7258_dvp_pm_acquire(priv);
+  if (ret < 0)
+    {
+      nxmutex_unlock(&priv->api_lock);
+      return ret;
+    }
+
+  if (priv->config.binding != NULL &&
+      priv->config.binding->prepare != NULL)
+    {
+      ret = priv->config.binding->prepare(priv->config.binding->arg);
+      if (ret != 0)
+        {
+          (void)bk7258_dvp_pm_release(priv);
+          nxmutex_unlock(&priv->api_lock);
+          return ret < 0 ? ret : -EIO;
+        }
+    }
+
+  /* The SDK DVP detector owns controller-specific I2C1 setup/teardown, but
+   * it assumes the AP-wide I2C driver root is already live.  Hold that root
+   * independently of /dev/i2c0 so an accelerometer close cannot tear it down
+   * while SCCB probing or camera streaming is active.
+   */
+
+  ret = bk7258_dvp_i2c_driver_acquire(priv);
+  if (ret < 0)
+    {
+      (void)bk7258_dvp_pm_release(priv);
+      nxmutex_unlock(&priv->api_lock);
+      return ret;
+    }
+
+#ifdef CONFIG_BK7258_DVP_H264_COMPAT
+  if (priv->sdk_config.img_format == IMAGE_H264)
+    {
+      g_bk7258_dvp_h264_opening = true;
+      g_bk7258_dvp_h264_yuv_deferred = false;
+      g_bk7258_dvp_h264_encode_deferred = false;
+      g_bk7258_dvp_yuv_irq_deferred = false;
+      g_bk7258_dvp_h264_irq_deferred = false;
+      g_bk7258_dvp.deferred_i2c_count = 0;
+    }
+#endif
+
+  error = bk_dvp_open(&priv->handle, &priv->sdk_config,
+                      &g_bk7258_dvp_callback, priv->config.encode_buffer);
+  ret = bk7258_dvp_error(error);
+#ifdef CONFIG_BK7258_DVP_H264_COMPAT
+  if (priv->sdk_config.img_format == IMAGE_H264)
+    {
+      g_bk7258_dvp_h264_opening = false;
+    }
+#endif
+  if (ret < 0 || priv->handle == NULL)
+    {
+      if (ret >= 0)
+        {
+          ret = -EIO;
+        }
+
+      priv->handle = NULL;
+      priv->deferred_i2c_count = 0;
+      (void)bk7258_dvp_i2c_driver_release(priv);
+      (void)bk7258_dvp_pm_release(priv);
+
+      nxmutex_unlock(&priv->api_lock);
+      return ret;
+    }
+
+  /* From this point the non-NULL SDK handle is the single ownership token.
+   * Set no parallel "open" flag which could diverge during a partial setup
+   * failure.  Every later failure is routed through the same
+   * bk_dvp_close()/PM cleanup path as normal imgdata uninitialize. */
+
+  priv->suspended = false;
+
+  /* The SDK may start the H.264 data path before completing a sensor
+   * descriptor.  A descriptor may begin driving DVP near the OUTPUT entries
+   * of its init table, which can raise YUV/H.264 IRQs while bk_dvp_open()
+   * still owns partially initialized state.  Defer only the first H.264
+   * start until the immutable SDK has completed sensor init; later frame
+   * restarts still pass straight through the wrappers above. */
+
+#ifdef CONFIG_BK7258_DVP_H264_COMPAT
+  if (priv->sdk_config.img_format == IMAGE_H264)
+    {
+      if (g_bk7258_dvp_yuv_irq_deferred)
+        {
+          error = __real_sys_drv_int_group2_enable(
+            BK7258_YUVB_GROUP2_MASK);
+          if (error != 0)
+            {
+              ret = -EIO;
+              goto fail_open;
+            }
+        }
+
+      if (g_bk7258_dvp_h264_irq_deferred)
+        {
+          error = __real_sys_drv_core_intr_group2_enable(
+            g_bk7258_dvp_h264_irq_core, BK7258_H264_GROUP2_MASK);
+          if (error != 0)
+            {
+              ret = -EIO;
+              goto fail_open;
+            }
+        }
+
+      if (g_bk7258_dvp_h264_yuv_deferred)
+        {
+          ret = bk7258_dvp_error(__real_bk_yuv_buf_start(H264_MODE));
+          if (ret < 0)
+            {
+              goto fail_open;
+            }
+        }
+
+      if (g_bk7258_dvp_h264_encode_deferred)
+        {
+          ret = bk7258_dvp_error(__real_bk_h264_encode_enable());
+          if (ret < 0)
+            {
+              goto fail_open;
+            }
+        }
+
+      for (uint8_t i = 0; i < g_bk7258_dvp.deferred_i2c_count; i++)
+        {
+          ret = bk7258_dvp_error(__real_dvp_camera_i2c_write_uint8(
+            g_bk7258_dvp.deferred_i2c[i].addr,
+            g_bk7258_dvp.deferred_i2c[i].reg,
+            g_bk7258_dvp.deferred_i2c[i].value));
+          if (ret < 0)
+            {
+              goto fail_open;
+            }
+        }
+
+      g_bk7258_dvp.deferred_i2c_count = 0;
+
+    }
+#endif
+
+  /* bk_dvp_open() starts the vendor stream before returning.  Until V4L2
+   * queues its first buffer, the bounded callback pool drops frames. */
+
+  nxmutex_unlock(&priv->api_lock);
+  return 0;
+
+#ifdef CONFIG_BK7258_DVP_H264_COMPAT
+fail_open:
+  nxmutex_unlock(&priv->api_lock);
+  (void)bk7258_dvp_data_uninit(data);
+  return ret;
+#endif
+}
+
+static int bk7258_dvp_data_uninit(FAR struct imgdata_s *data)
+{
+  FAR struct bk7258_dvp_s *priv = bk7258_dvp_from_data(data);
+  irqstate_t flags;
+  bool current_worker;
+  int stop_ret;
+  int close_ret;
+  int i2c_ret = 0;
+  int pm_ret = 0;
+  int cancel_ret = 0;
+  int ret;
+
+  stop_ret = bk7258_dvp_stop_stream(priv);
+
+  ret = nxmutex_lock(&priv->api_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  flags = spin_lock_irqsave(&priv->lock);
+  if (priv->handle == NULL)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+
+      /* A previous close may already have consumed the SDK handle while a
+       * PM put failed.  The PM ownership bits deliberately remain set in
+       * that case, so a repeated imgdata uninit must retry their release
+       * instead of treating the NULL handle as a fully closed object. */
+
+      if (priv->i2c_driver_held)
+        {
+          i2c_ret = bk7258_dvp_i2c_driver_release(priv);
+        }
+
+      if (priv->pm_mclk_held || priv->pm_clock_held ||
+      priv->pm_frequency_held)
+        {
+          pm_ret = bk7258_dvp_pm_release(priv);
+        }
+
+      nxmutex_unlock(&priv->api_lock);
+      if (stop_ret < 0)
+        {
+          return stop_ret;
+        }
+
+      return i2c_ret < 0 ? i2c_ret : pm_ret;
+    }
+
+  if (priv->stopping)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      nxmutex_unlock(&priv->api_lock);
+      return stop_ret < 0 ? stop_ret : -EBUSY;
+    }
+
+  priv->stopping = true;
+  priv->capture_active = false;
+  priv->capture_cb = NULL;
+  priv->capture_arg = NULL;
+  camera_handle_t handle = priv->handle;
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  nxmutex_unlock(&priv->api_lock);
+
+  /* bk_dvp_close() may wait for the SDK's own frame path.  Do not hold the
+   * wrapper mutex while it runs, and never synchronously cancel this worker
+   * from itself.  v3.1.1.9 always consumes a non-NULL handle and returns
+   * BK_OK; clearing the token below therefore completes that ownership pair. */
+  close_ret = bk7258_dvp_error(bk_dvp_close(handle));
+  current_worker = bk7258_dvp_is_current_worker(priv);
+  if (!current_worker)
+    {
+      cancel_ret = work_cancel_sync(LPWORK, &priv->complete_work);
+      if (cancel_ret == -ENOENT)
+        {
+          cancel_ret = 0;
+        }
+    }
+
+  ret = nxmutex_lock(&priv->api_lock);
+  if (ret < 0)
+    {
+      return close_ret < 0 ? close_ret : ret;
+    }
+  flags = spin_lock_irqsave(&priv->lock);
+  bk7258_dvp_drop_events_locked(priv);
+  if (!current_worker)
+    {
+      priv->work_queued = false;
+      priv->worker_running = false;
+      priv->worker_tid = (pid_t)-1;
+    }
+  if (close_ret == 0)
+    {
+      priv->handle = NULL;
+      priv->suspended = false;
+    }
+  priv->stopping = false;
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  if (close_ret == 0)
+    {
+      i2c_ret = bk7258_dvp_i2c_driver_release(priv);
+      pm_ret = bk7258_dvp_pm_release(priv);
+    }
+
+  nxmutex_unlock(&priv->api_lock);
+
+  if (close_ret < 0)
+    {
+      return close_ret;
+    }
+  if (stop_ret < 0)
+    {
+      return stop_ret;
+    }
+  if (cancel_ret < 0)
+    {
+      return cancel_ret;
+    }
+
+  if (i2c_ret < 0)
+    {
+      return i2c_ret;
+    }
+
+  return pm_ret < 0 ? pm_ret : 0;
+}
+
+static int bk7258_dvp_data_set_buf(FAR struct imgdata_s *data,
+                                   uint8_t nr_datafmts,
+                                   FAR imgdata_format_t *datafmts,
+                                   FAR uint8_t *addr, uint32_t size)
+{
+  FAR struct bk7258_dvp_s *priv = bk7258_dvp_from_data(data);
+  irqstate_t flags;
+  int ret;
+
+  ret = bk7258_dvp_validate_frame_setting(priv, nr_datafmts, datafmts,
+                                          NULL);
+  if (ret < 0 || addr == NULL || size == 0)
+    {
+      return ret < 0 ? ret : -EINVAL;
+    }
+
+  flags = spin_lock_irqsave(&priv->lock);
+  if (priv->handle == NULL)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      return -ENODEV;
+    }
+  if (priv->stopping)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      return -EBUSY;
+    }
+  if (priv->next_buffer != NULL)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      return -EBUSY;
+    }
+  priv->next_buffer = addr;
+  priv->next_size = size;
+  spin_unlock_irqrestore(&priv->lock, flags);
+  return 0;
+}
+
+static int bk7258_dvp_data_validate_frame_setting(
+  FAR struct imgdata_s *data, uint8_t nr_datafmts,
+  FAR imgdata_format_t *datafmts, FAR imgdata_interval_t *interval)
+{
+  FAR struct bk7258_dvp_s *priv = bk7258_dvp_from_data(data);
+
+  return bk7258_dvp_validate_frame_setting(priv, nr_datafmts, datafmts,
+                                           interval);
+}
+
+static int bk7258_dvp_data_start_capture(
+  FAR struct imgdata_s *data, uint8_t nr_datafmts,
+  FAR imgdata_format_t *datafmts, FAR imgdata_interval_t *interval,
+  imgdata_capture_t callback, FAR void *arg)
+{
+  FAR struct bk7258_dvp_s *priv = bk7258_dvp_from_data(data);
+  irqstate_t flags;
+  bool resume;
+  int ret;
+
+  ret = bk7258_dvp_validate_frame_setting(priv, nr_datafmts, datafmts,
+                                          interval);
+  if (ret < 0 || callback == NULL)
+    {
+      return ret < 0 ? ret : -EINVAL;
+    }
+
+  ret = nxmutex_lock(&priv->api_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  flags = spin_lock_irqsave(&priv->lock);
+  if (priv->handle == NULL)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      nxmutex_unlock(&priv->api_lock);
+      return -ENODEV;
+    }
+  if (priv->stopping)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      nxmutex_unlock(&priv->api_lock);
+      return -EBUSY;
+    }
+  if (priv->capture_active)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      nxmutex_unlock(&priv->api_lock);
+      return -EBUSY;
+    }
+  if (priv->next_buffer == NULL)
+    {
+      spin_unlock_irqrestore(&priv->lock, flags);
+      nxmutex_unlock(&priv->api_lock);
+      return -EINVAL;
+    }
+  resume = priv->suspended;
+  priv->capture_cb = callback;
+  priv->capture_arg = arg;
+  priv->capture_active = true;
+  spin_unlock_irqrestore(&priv->lock, flags);
+
+  if (resume)
+    {
+      ret = bk7258_dvp_error(bk_dvp_resume(priv->handle));
+      if (ret < 0)
+        {
+          flags = spin_lock_irqsave(&priv->lock);
+          priv->capture_active = false;
+          priv->capture_cb = NULL;
+          priv->capture_arg = NULL;
+          spin_unlock_irqrestore(&priv->lock, flags);
+          nxmutex_unlock(&priv->api_lock);
+          return ret;
+        }
+      priv->suspended = false;
+    }
+
+  nxmutex_unlock(&priv->api_lock);
+  return 0;
+}
+
+static int bk7258_dvp_data_stop_capture(FAR struct imgdata_s *data)
+{
+  FAR struct bk7258_dvp_s *priv = bk7258_dvp_from_data(data);
+  irqstate_t flags;
+  int ret;
+
+  if (bk7258_dvp_is_current_worker(priv))
+    {
+      /* complete_capture() calls us with its upper-half spinlock held and
+       * local interrupts disabled when the last queued buffer is consumed.
+       * This is a delivery pause, not a thread-context SDK shutdown: taking
+       * api_lock, resetting JPEG/YUV or joining work here violates that
+       * callback context.  Keep the SDK handle alive for a subsequent QBUF;
+       * external stop/uninitialize performs the synchronous hardware stop.
+       * The in-flight frame stays owned by complete_worker until its callback
+       * returns.  Later SDK completions are dropped while capture is idle.
+       */
+
+      flags = spin_lock_irqsave(&priv->lock);
+      priv->capture_active = false;
+      priv->capture_cb = NULL;
+      priv->capture_arg = NULL;
+      priv->next_buffer = NULL;
+      priv->next_size = 0;
+      bk7258_dvp_drop_events_locked(priv);
+      spin_unlock_irqrestore(&priv->lock, flags);
+      ret = 0;
+    }
+  else
+    {
+      ret = bk7258_dvp_stop_stream(priv);
+    }
+  return ret;
+}
+
+#ifdef CONFIG_BK7258_PSRAM
+static FAR void *bk7258_dvp_data_alloc(FAR struct imgdata_s *data,
+                                       uint32_t align_size, uint32_t size)
+{
+  FAR struct bk7258_dvp_allocation_s *allocation;
+  FAR uint8_t *base;
+  uintptr_t address;
+  uintptr_t remainder;
+  size_t overhead;
+
+  (void)data;
+
+  if (size == 0 || !bk7258_psram_ready())
+    {
+      return NULL;
+    }
+
+  if (align_size < sizeof(uintptr_t))
+    {
+      align_size = sizeof(uintptr_t);
+    }
+
+  overhead = sizeof(*allocation) + align_size - 1u;
+  if (size > SIZE_MAX - overhead)
+    {
+      return NULL;
+    }
+
+#ifdef CONFIG_BK7258_PSRAM_MEDIA
+  /* V4L2 requests the complete MMAP pool in one allocation. The AP private
+   * 640 KiB heap reserves 512 KiB for the system heap on AIDK, so even two
+   * 100 KiB frames cannot fit there. Use the SDK encode slab, through the
+   * chip allocator, for compressed capture buffers just like SDK frames.
+   */
+
+  base = bk7258_psram_media_malloc(BK7258_PSRAM_MEDIA_ENCODE,
+                                   size + overhead);
+#else
+  base = bk7258_psram_malloc(size + overhead);
+#endif
+  if (base == NULL)
+    {
+      return NULL;
+    }
+
+  address = (uintptr_t)(base + sizeof(*allocation));
+  remainder = address % align_size;
+  if (remainder != 0)
+    {
+      address += align_size - remainder;
+    }
+
+  allocation = (FAR struct bk7258_dvp_allocation_s *)address - 1;
+  allocation->base = base;
+  allocation->magic = BK7258_DVP_ALLOC_MAGIC;
+  return (FAR void *)address;
+}
+
+static void bk7258_dvp_data_free(FAR struct imgdata_s *data, FAR void *addr)
+{
+  FAR struct bk7258_dvp_allocation_s *allocation;
+  FAR void *base;
+
+  (void)data;
+
+  if (addr == NULL)
+    {
+      return;
+    }
+
+  allocation = (FAR struct bk7258_dvp_allocation_s *)addr - 1;
+  if (allocation->magic != BK7258_DVP_ALLOC_MAGIC)
+    {
+      return;
+    }
+
+  base = allocation->base;
+  allocation->magic = 0;
+  allocation->base = NULL;
+#ifdef CONFIG_BK7258_PSRAM_MEDIA
+  bk7258_psram_media_free(base);
+#else
+  bk7258_psram_free(base);
+#endif
+}
+#endif
+
+static const struct imgdata_ops_s g_bk7258_dvp_data_ops =
+{
+  .init = bk7258_dvp_data_init,
+  .uninit = bk7258_dvp_data_uninit,
+  .set_buf = bk7258_dvp_data_set_buf,
+  .validate_frame_setting = bk7258_dvp_data_validate_frame_setting,
+  .start_capture = bk7258_dvp_data_start_capture,
+  .stop_capture = bk7258_dvp_data_stop_capture,
+#ifdef CONFIG_BK7258_PSRAM
+  .alloc = bk7258_dvp_data_alloc,
+  .free = bk7258_dvp_data_free,
+#endif
+};
+
+int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
+                          FAR struct bk7258_dvp_s **out)
+{
+  struct bk7258_dvp_buffer_requirements_s requirements;
+  bk_dvp_config_t sdk;
+  irqstate_t flags;
+  uint8_t i;
+  int ret;
+
+  if (config == NULL || out == NULL || config->frames == NULL ||
+      config->frame_count < 2 || config->frame_count > BK7258_DVP_MAX_FRAMES)
+    {
+      return -EINVAL;
+    }
+
+  if (config->binding != NULL &&
+      (config->binding->version != BK7258_DVP_BINDING_VERSION ||
+       config->binding->size < sizeof(*config->binding)))
+    {
+      return -EINVAL;
+    }
+
+  ret = bk7258_dvp_make_sdk_config(&config->sensor, &sdk);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  ret = bk7258_dvp_get_buffer_requirements(&config->sensor,
+                                            &requirements);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (requirements.encode_buffer_size != 0u &&
+      (config->encode_buffer == NULL || config->encode_buffer_size == 0))
+    {
+      return -EINVAL;
+    }
+
+  if (config->encode_buffer_size < requirements.encode_buffer_size)
+    {
+      return -EINVAL;
+    }
+
+  for (i = 0; i < config->frame_count; i++)
+    {
+      if (config->frames[i].addr == NULL ||
+          config->frames[i].size < requirements.frame_size)
+        {
+          return -EINVAL;
+        }
+    }
+
+  ret = nxmutex_lock(&g_bk7258_dvp.api_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (g_bk7258_dvp.configured)
+    {
+      bool same = g_bk7258_dvp.config.frames == config->frames &&
+                  g_bk7258_dvp.config.binding == config->binding &&
+                  g_bk7258_dvp.config.frame_count == config->frame_count &&
+                  g_bk7258_dvp.config.encode_buffer == config->encode_buffer &&
+                  g_bk7258_dvp.config.encode_buffer_size ==
+                  config->encode_buffer_size &&
+                  memcmp(&g_bk7258_dvp.sdk_config, &sdk,
+                         sizeof(sdk)) == 0;
+
+      nxmutex_unlock(&g_bk7258_dvp.api_lock);
+      if (same)
+        {
+          *out = &g_bk7258_dvp;
+          return 0;
+        }
+      return -EBUSY;
+    }
+
+  spin_lock_init(&g_bk7258_dvp.lock);
+  g_bk7258_dvp.config = *config;
+  g_bk7258_dvp.sdk_config = sdk;
+  g_bk7258_dvp.deferred_i2c_count = 0;
+  g_bk7258_dvp.data.ops = &g_bk7258_dvp_data_ops;
+  g_bk7258_dvp.configured = true;
+  g_bk7258_dvp.handle = NULL;
+  g_bk7258_dvp.pm_clock_held = false;
+  g_bk7258_dvp.pm_mclk_held = false;
+  g_bk7258_dvp.pm_frequency_held = false;
+  g_bk7258_dvp.suspended = false;
+  flags = spin_lock_irqsave(&g_bk7258_dvp.lock);
+  memset(g_bk7258_dvp.frame_busy, 0, sizeof(g_bk7258_dvp.frame_busy));
+  g_bk7258_dvp.event_head = 0;
+  g_bk7258_dvp.event_count = 0;
+  g_bk7258_dvp.work_queued = false;
+  g_bk7258_dvp.worker_running = false;
+  g_bk7258_dvp.worker_tid = (pid_t)-1;
+  g_bk7258_dvp.stopping = false;
+  g_bk7258_dvp.capture_active = false;
+  spin_unlock_irqrestore(&g_bk7258_dvp.lock, flags);
+  *out = &g_bk7258_dvp;
+  nxmutex_unlock(&g_bk7258_dvp.api_lock);
+  return 0;
+}
+
+FAR struct imgdata_s *bk7258_dvp_get_imgdata(FAR struct bk7258_dvp_s *priv)
+{
+  return priv == &g_bk7258_dvp && priv->configured ? &priv->data : NULL;
+}
+
+int bk7258_dvp_uninitialize(FAR struct bk7258_dvp_s *priv)
+{
+  int ret;
+
+  if (priv != &g_bk7258_dvp)
+    {
+      return -EINVAL;
+    }
+
+  ret = nxmutex_lock(&priv->api_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+  if (priv->handle != NULL)
+    {
+      nxmutex_unlock(&priv->api_lock);
+      return -EBUSY;
+    }
+
+  if (priv->pm_mclk_held || priv->pm_clock_held ||
+      priv->pm_frequency_held)
+    {
+      ret = bk7258_dvp_pm_release(priv);
+      if (ret < 0)
+        {
+          nxmutex_unlock(&priv->api_lock);
+          return ret;
+        }
+    }
+
+  priv->configured = false;
+  memset(&priv->config, 0, sizeof(priv->config));
+  memset(&priv->sdk_config, 0, sizeof(priv->sdk_config));
+  priv->data.ops = NULL;
+  nxmutex_unlock(&priv->api_lock);
+  return 0;
+}
+
+int bk7258_dvp_sensor_lock(FAR struct bk7258_dvp_s *priv)
+{
+  int ret;
+  if (priv == NULL)
+    {
+      return -ENODEV;
+    }
+
+  ret = nxmutex_lock(&priv->api_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  if (priv->handle == NULL || priv->stopping)
+    {
+      nxmutex_unlock(&priv->api_lock);
+      return -ENODEV;
+    }
+
+  return 0;
+}
+
+void bk7258_dvp_sensor_unlock(FAR struct bk7258_dvp_s *priv)
+{
+  nxmutex_unlock(&priv->api_lock);
+}
+
+int bk7258_dvp_sensor_read(FAR struct bk7258_dvp_s *priv, uint8_t reg,
+                           FAR uint8_t *value)
+{
+  dvp_sensor_reg_val_t transfer = {0};
+  int ret;
+  if (priv == NULL || value == NULL || priv->handle == NULL)
+    {
+      return -EINVAL;
+    }
+
+  transfer.reg = reg;
+  ret = bk7258_dvp_error(bk_dvp_sensor_read_register(priv->handle, &transfer));
+  if (ret >= 0)
+    {
+      *value = transfer.val;
+    }
+
+  return ret;
+}
+
+int bk7258_dvp_sensor_write(FAR struct bk7258_dvp_s *priv, uint8_t reg,
+                            uint8_t value)
+{
+  dvp_sensor_reg_val_t transfer = {0};
+  if (priv == NULL || priv->handle == NULL)
+    {
+      return -EINVAL;
+    }
+
+  transfer.reg = reg;
+  transfer.val = value;
+  return bk7258_dvp_error(bk_dvp_sensor_write_register(priv->handle, &transfer));
+}
+
+int bk7258_dvp_suspend(FAR struct bk7258_dvp_s *priv)
+{
+  int ret;
+
+  if (priv != &g_bk7258_dvp)
+    {
+      return -EINVAL;
+    }
+
+  ret = nxmutex_lock(&priv->api_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+  if (priv->handle == NULL)
+    {
+      nxmutex_unlock(&priv->api_lock);
+      return -ENODEV;
+    }
+  if (priv->suspended)
+    {
+      nxmutex_unlock(&priv->api_lock);
+      return 0;
+    }
+
+  ret = bk7258_dvp_error(bk_dvp_suspend(priv->handle));
+  if (ret == 0)
+    {
+      priv->suspended = true;
+    }
+  nxmutex_unlock(&priv->api_lock);
+  return ret;
+}
+
+int bk7258_dvp_resume(FAR struct bk7258_dvp_s *priv)
+{
+  int ret;
+
+  if (priv != &g_bk7258_dvp)
+    {
+      return -EINVAL;
+    }
+
+  ret = nxmutex_lock(&priv->api_lock);
+  if (ret < 0)
+    {
+      return ret;
+    }
+  if (priv->handle == NULL)
+    {
+      nxmutex_unlock(&priv->api_lock);
+      return -ENODEV;
+    }
+  if (!priv->suspended)
+    {
+      nxmutex_unlock(&priv->api_lock);
+      return 0;
+    }
+
+  ret = bk7258_dvp_error(bk_dvp_resume(priv->handle));
+  if (ret == 0)
+    {
+      priv->suspended = false;
+    }
+  nxmutex_unlock(&priv->api_lock);
+  return ret;
+}

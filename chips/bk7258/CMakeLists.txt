@@ -1,0 +1,761 @@
+############################################################################
+# chips/bk7258/CMakeLists.txt
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# CMake mirror of chip/Make.defs.  Source ordering and feature gates follow
+# the Classic Make backend; backend-specific ARM common-source differences
+# are documented where they occur.
+############################################################################
+
+if(CONFIG_BK7258_TOUCH AND CONFIG_BK7258_AP_CORE)
+  message(FATAL_ERROR
+          "CONFIG_BK7258_TOUCH is CP-only; the board selector must depend on !BK7258_AP_CORE")
+endif()
+
+if("$ENV{BK7258_SDK_DIR}" STREQUAL "")
+  message(FATAL_ERROR
+          "BK7258_SDK_DIR is required; use tools/bk7258/bk7258.py build")
+endif()
+set(BK7258_SDK_DIR "$ENV{BK7258_SDK_DIR}")
+set(BK7258_SDK_INCLUDE_DIR "${BK7258_SDK_DIR}/include")
+set(BK7258_SDK_CONFIG_DIR "${BK7258_SDK_DIR}/config")
+set(BK7258_SDK_LIBS_DIR "${BK7258_SDK_DIR}/libs")
+# SDK implementation details are owned by the chip, never by a board.
+foreach(BK7258_REQUIRED_SDK_PATH
+        "${BK7258_SDK_INCLUDE_DIR}" "${BK7258_SDK_CONFIG_DIR}"
+        "${BK7258_SDK_LIBS_DIR}")
+  if(NOT EXISTS "${BK7258_REQUIRED_SDK_PATH}")
+    message(FATAL_ERROR "BK7258 SDK input is missing: ${BK7258_REQUIRED_SDK_PATH}")
+  endif()
+endforeach()
+
+set(BK7258_NUTTX_OVERLAY_DIR "${NUTTX_DIR}/../vendor/beken/nuttx")
+
+# Arm GNU's C++ wrappers use include_next for the C library. Put the
+# matching toolchain C++ headers before NuttX's C headers so that wrappers
+# resolve stdlib.h/string.h to NuttX, rather than to the bundled Newlib ABI.
+function(bk7258_configure_toolchain_cxx_headers)
+  execute_process(COMMAND "${CMAKE_CXX_COMPILER}" -print-sysroot
+                  OUTPUT_VARIABLE sysroot OUTPUT_STRIP_TRAILING_WHITESPACE
+                  COMMAND_ERROR_IS_FATAL ANY)
+  execute_process(COMMAND "${CMAKE_CXX_COMPILER}" -dumpfullversion
+                  OUTPUT_VARIABLE version OUTPUT_STRIP_TRAILING_WHITESPACE
+                  COMMAND_ERROR_IS_FATAL ANY)
+  set(headers "${sysroot}/include/c++/${version}")
+  if(NOT EXISTS "${headers}/cstdlib")
+    message(FATAL_ERROR "Missing C++ headers for selected Arm GNU toolchain")
+  endif()
+  get_target_property(targets nuttx_target_interface ALL_TARGETS)
+  foreach(target IN LISTS targets)
+    target_include_directories(${target} SYSTEM BEFORE PRIVATE
+                               "$<$<COMPILE_LANGUAGE:CXX>:${headers}>")
+  endforeach()
+endfunction()
+
+if(CONFIG_LIBCXXTOOLCHAIN AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}"
+                 CALL bk7258_configure_toolchain_cxx_headers)
+endif()
+
+if(CONFIG_CL_MFRC522_FRAME AND CONFIG_CL_MFRC522)
+  message(FATAL_ERROR "select exactly one MFRC522 implementation")
+endif()
+
+if(CONFIG_INPUT_GT9XX_STANDARD_IOCTL AND CONFIG_INPUT_GT9XX)
+  message(FATAL_ERROR
+          "select exactly one GT9xx implementation")
+endif()
+
+function(bk7258_wrap_sdk_symbol)
+  foreach(BK7258_SYMBOL ${ARGN})
+    target_link_options(nuttx PRIVATE
+                        "LINKER:--wrap=${BK7258_SYMBOL}")
+  endforeach()
+endfunction()
+
+# Kernel compatibility is not an SDK ABI adapter. Applicability is checked
+# by kernel_compat.json at the sole build entry and by the private header.
+function(bk7258_wrap_kernel_symbol)
+  foreach(BK7258_SYMBOL ${ARGN})
+    target_link_options(nuttx PRIVATE "LINKER:--wrap=${BK7258_SYMBOL}")
+  endforeach()
+endfunction()
+
+set(BK7258_COMMON_FRONT_SRCS
+    common/bk7258_lowputc.c
+    common/bk7258_serial.c
+    common/bk7258_irq.c
+    common/bk7258_timerisr.c
+    common/bk7258_allocateheap.c)
+
+set(BK7258_COMMON_RUNTIME_SRCS
+    common/bk7258_irq.c
+    common/bk7258_timerisr.c
+    common/bk7258_allocateheap.c
+    common/bk7258_os_adapt.c
+    common/bk7258_sdk_stubs.c
+    common/bk7258_idle.c)
+
+set(BK7258_COMMON_LATE_SRCS
+    common/bk7258_os_adapt.c
+    common/bk7258_sdk_stubs.c
+    common/bk7258_idle.c)
+
+# CPU0/CP sources.  Keep the same order as BK7258_CP_CSRCS in Make.defs.
+
+set(BK7258_CP_SRCS
+    cp/bk7258_vectors.c
+    cp/bk7258_start.c)
+
+if(CONFIG_BK7258_CONSOLE_RTT)
+  list(APPEND BK7258_CP_SRCS common/bk7258_rtt_lowputc.c)
+  target_include_directories(arch PRIVATE
+      ${NUTTX_DIR}/drivers/segger/SystemView/SEGGER
+      ${NUTTX_DIR}/drivers/segger/config)
+else()
+  # CONSOLE_NONE still needs the side-effect-free arm_lowputc()/up_putc()
+  # hooks referenced by generic NuttX assert and syslog code.
+  list(APPEND BK7258_CP_SRCS common/bk7258_lowputc.c)
+endif()
+
+if(CONFIG_BK7258_UART0 OR CONFIG_BK7258_UART1 OR CONFIG_BK7258_UART2)
+  list(APPEND BK7258_CP_SRCS common/bk7258_serial.c)
+endif()
+
+list(APPEND BK7258_CP_SRCS
+     ${BK7258_COMMON_RUNTIME_SRCS}
+     common/bk7258_stage_runner.c
+     cp/bk7258_cp_platform.c
+     cp/bk7258_flash.c
+     common/bk7258_sdk_partition.c)
+
+if(CONFIG_BK7258_FLASH_MTD)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_flash_mtd.c)
+endif()
+
+if(CONFIG_BK7258_IDENTITY)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_identity.c)
+endif()
+
+if(CONFIG_BOARDCTL_RESET_CAUSE)
+  list(APPEND BK7258_CP_SRCS common/bk7258_reset_cause.c)
+endif()
+
+if(CONFIG_BK7258_SWD_DEBUG)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_swd_debug.c)
+  if(NOT CONFIG_BK7258_AP_CORE)
+    bk7258_wrap_sdk_symbol(gpio_hal_default_map_init)
+  endif()
+endif()
+
+if(CONFIG_BK7258_SDK_IPC_RUNTIME)
+  list(APPEND BK7258_CP_SRCS common/bk7258_sdk_runtime.c)
+endif()
+
+if(CONFIG_BK7258_PSRAM)
+  list(APPEND BK7258_CP_SRCS common/bk7258_psram.c)
+endif()
+
+if(CONFIG_BK7258_AP_CONTROL)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_ap_control.c)
+endif()
+
+if(CONFIG_BK7258_AP_SUPERVISOR)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_ap_supervisor.c)
+endif()
+
+if(CONFIG_BK7258_BT_IPC OR CONFIG_BK7258_WIFI_VNET)
+  list(APPEND BK7258_CP_SRCS
+       cp/bk7258_bt_controller.c
+       cp/bk7258_radio_storage.c)
+endif()
+
+if(CONFIG_BK7258_WIFI_VNET)
+  list(APPEND BK7258_CP_SRCS common/bk7258_wifi_control.c)
+  if(NOT CONFIG_BK7258_AP_CORE)
+    bk7258_wrap_sdk_symbol(malloc)
+  endif()
+endif()
+
+if(CONFIG_BK7258_WIFI_PACKET_DIAG)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_wifi_packet_diag.c)
+  bk7258_wrap_sdk_symbol(ethernetif_input udp_sendto_if_src)
+endif()
+
+if(CONFIG_BK7258_BT_IPC AND NOT CONFIG_BK7258_AP_CORE)
+  bk7258_wrap_sdk_symbol(bk_bluetooth_init bk_bluetooth_deinit rand)
+endif()
+
+if(CONFIG_BK7258_RPTUN_MBOX)
+  list(APPEND BK7258_CP_SRCS common/bk7258_rptun_mbox.c)
+endif()
+
+if(CONFIG_BK7258_RPTUN)
+  list(APPEND BK7258_CP_SRCS common/bk7258_rptun.c)
+  if(CONFIG_BK7258_OTA_RPMSG)
+    list(APPEND BK7258_CP_SRCS common/bk7258_ota_rpmsg.c)
+  endif()
+  if(CONFIG_BK7258_USBMODE_RPMSG)
+    list(APPEND BK7258_CP_SRCS common/bk7258_usbmode_rpmsg.c)
+  endif()
+  if(CONFIG_BK7258_PM_CLOCK)
+    list(APPEND BK7258_CP_SRCS cp/bk7258_pm_server.c)
+  endif()
+  if(CONFIG_BK7258_TEMPERATURE)
+    list(APPEND BK7258_CP_SRCS cp/bk7258_temperature_server.c)
+  endif()
+  if(CONFIG_BK7258_AP_SUPERVISOR)
+    list(APPEND BK7258_CP_SRCS common/bk7258_rpmsg_health.c)
+  endif()
+  if(CONFIG_BK7258_RPMSG_TEST)
+    list(APPEND BK7258_CP_SRCS common/bk7258_rpmsg_test.c)
+  endif()
+  if(CONFIG_BK7258_RPMSGFS_TEST)
+    list(APPEND BK7258_CP_SRCS common/bk7258_rpmsgfs_test.c)
+  endif()
+  if(CONFIG_BK7258_BT_IPC_TEST)
+    list(APPEND BK7258_CP_SRCS common/bk7258_bt_test.c)
+  endif()
+endif()
+
+if(CONFIG_BK7258_SDK_IRQ_BRIDGE)
+  list(APPEND BK7258_CP_SRCS common/bk7258_sdk_irq.c)
+endif()
+
+if(CONFIG_BK7258_SDK_IRQ_TIMER_TEST)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_sdk_irq_timer_test.c)
+endif()
+
+if(CONFIG_BK7258_SDK_TIMER_SELFTEST)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_sdk_timer_selftest.c)
+endif()
+
+if(CONFIG_BK7258_GPIO_FOUNDATION_TEST)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_gpio_foundation_test.c)
+endif()
+
+if(CONFIG_BK7258_GPIO_IRQ_TEST)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_gpio_irq_test.c)
+endif()
+
+if(CONFIG_BK7258_GPIO_LOWERHALF)
+  list(APPEND BK7258_CP_SRCS
+       cp/bk7258_gpio_cp_irq.c
+       cp/bk7258_gpio_lowerhalf.c)
+endif()
+
+if(CONFIG_BK7258_CP_GPIO_INPUT)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_gpio_input.c)
+endif()
+
+if(CONFIG_BK7258_CLOCK_240M)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_clock.c)
+endif()
+
+# arm_m/CMakeLists.txt already selects arm_systick.c with CONFIG_ARM_SYSTICK.
+# Classic Make adds it here only to work around its CONFIG_ARM_M_SYSTICK typo.
+
+if(CONFIG_BK7258_DVFS)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_dvfs.c)
+endif()
+
+if(CONFIG_BK7258_PM_SOFT_OFF)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_pm_soft_off.c)
+endif()
+
+if(CONFIG_BK7258_PM_POLICY)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_pm_policy.c)
+  bk7258_wrap_sdk_symbol(bk_pm_module_vote_cpu_freq)
+endif()
+
+if(CONFIG_BK7258_PM_COORDINATED_STANDBY)
+  list(APPEND BK7258_CP_SRCS
+       common/bk7258_pm_activity.c
+       cp/bk7258_pm_coord_cp.c)
+  bk7258_wrap_sdk_symbol(pm_low_voltage_bsp_restore
+                         bk_pm_module_vote_sleep_ctrl)
+endif()
+
+if(CONFIG_BK7258_DVFS_PROCFS)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_dvfs_procfs.c)
+endif()
+
+if(CONFIG_BK7258_WDT)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_wdt.c)
+endif()
+
+if(CONFIG_BK7258_WDT OR CONFIG_BK7258_OTA)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_system_reset.c)
+endif()
+
+if(CONFIG_BK7258_OTA OR CONFIG_BK7258_WDT_PRETIMEOUT_PANIC OR
+   CONFIG_BK7258_FLASH_MTD OR
+   CONFIG_BK7258_BT_IPC OR CONFIG_BK7258_WIFI_VNET)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_storage.c)
+endif()
+
+if(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_reset_marker.c)
+endif()
+
+if(CONFIG_BK7258_OTA)
+  list(APPEND BK7258_CP_SRCS
+       common/bk7258_boot_slot.c
+       cp/bk7258_ota_flash.c
+       cp/bk7258_ota_image.c
+       cp/bk7258_ota_pair.c
+       cp/bk7258_ota_boot_control.c)
+endif()
+
+if(CONFIG_BK7258_IRDA)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_irda.c)
+endif()
+
+if(CONFIG_BK7258_SARADC_SERVER)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_saradc_server.c)
+endif()
+
+if(CONFIG_BK7258_TOUCH)
+  list(APPEND BK7258_CP_SRCS cp/bk7258_touch.c)
+endif()
+
+# Physical CPU1/AP sources.  AP-UP and AP-SMP share the same peripheral set.
+
+set(BK7258_AP_BASE_SRCS
+    ap/bk7258_ap_vectors.c
+    ap/bk7258_ap_start.c
+    ${BK7258_COMMON_FRONT_SRCS}
+    common/bk7258_stage_runner.c
+    ap/bk7258_pinmux.c
+    ap/bk7258_ap_platform.c
+    ap/bk7258_ap_lifecycle.c)
+
+if(CONFIG_BK7258_PM_COORDINATED_STANDBY)
+  list(APPEND BK7258_AP_BASE_SRCS
+       common/bk7258_pm_activity.c
+       ap/bk7258_pm_coord_ap.c)
+endif()
+
+if(CONFIG_BK7258_SDK_IPC_RUNTIME)
+  list(APPEND BK7258_AP_BASE_SRCS common/bk7258_sdk_runtime.c)
+endif()
+
+if(CONFIG_BK7258_PSRAM)
+  list(APPEND BK7258_AP_BASE_SRCS common/bk7258_psram.c)
+endif()
+
+if(CONFIG_BK7258_BT_IPC)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_bt_hci.c)
+endif()
+
+if(CONFIG_BK7258_BLE_GATT)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_ble_gatt.c)
+endif()
+
+if(CONFIG_BK7258_OTA_MANAGER)
+  if("$ENV{BK7258_OTA_CATALOG_PUBLIC_SOURCE}" STREQUAL "")
+    message(FATAL_ERROR
+            "BK7258_OTA_MANAGER requires the generated catalog public root")
+  endif()
+  list(APPEND BK7258_AP_BASE_SRCS
+       ap/bk7258_active_image.c
+       ap/bk7258_ota_manager.c
+       ap/bk7258_ota_catalog.c
+       "$ENV{BK7258_OTA_CATALOG_PUBLIC_SOURCE}")
+  target_include_directories(arch PRIVATE ${CMAKE_BINARY_DIR}/apps/include)
+endif()
+
+if(CONFIG_BK7258_OTA_SOURCE_FILE)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_ota_source_file.c)
+endif()
+
+if(CONFIG_BK7258_OTA_SOURCE_HTTP)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_ota_source_http.c)
+endif()
+
+if(CONFIG_BK7258_OTA_SOURCE_USB)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_ota_source_usb.c)
+endif()
+
+if(CONFIG_BK7258_WIFI_VNET)
+  list(APPEND BK7258_AP_BASE_SRCS
+      ap/bk7258_wifi.c
+      common/bk7258_wifi_control.c)
+  target_include_directories(arch PRIVATE ${NUTTX_APPS_DIR}/include)
+endif()
+
+if(CONFIG_BK7258_BT_IPC AND CONFIG_WIRELESS_BLUETOOTH_HOST)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_ble_scan.c)
+endif()
+
+if(CONFIG_BK7258_WIFI_VNET OR CONFIG_BK7258_BT_IPC_TEST OR
+   (CONFIG_BK7258_BT_IPC AND CONFIG_WIRELESS_BLUETOOTH_HOST))
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_radio_mode.c)
+endif()
+
+foreach(BK7258_AP_PERIPHERAL AUD GPIOE I2C I2S)
+  if(CONFIG_BK7258_${BK7258_AP_PERIPHERAL})
+    string(TOLOWER ${BK7258_AP_PERIPHERAL} BK7258_AP_PERIPHERAL_FILE)
+    list(APPEND BK7258_AP_BASE_SRCS
+         ap/bk7258_${BK7258_AP_PERIPHERAL_FILE}.c)
+  endif()
+endforeach()
+
+if(CONFIG_BK7258_I2C OR CONFIG_BK7258_DVP)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_i2c_resource.c)
+endif()
+
+if(CONFIG_BK7258_AUDIO_PREPROCESS)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_audio_preprocess.c)
+endif()
+
+if(CONFIG_BK7258_LCD_RGB)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ap/bk7258_lcd_rgb.c
+       ap/bk7258_lcd_3wire.c)
+endif()
+
+if(CONFIG_LCD_ILI9488_RGB)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/lcd/ili9488_rgb.c)
+endif()
+
+if(CONFIG_BK7258_LCD_SPI)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lcd_spi.c)
+endif()
+
+if(CONFIG_LCD_GC9D01)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/lcd/gc9d01.c)
+endif()
+
+if(CONFIG_CL_MFRC522_FRAME)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ${NUTTX_DIR}/drivers/contactless/mfrc522.c)
+endif()
+
+if(CONFIG_CL_ISODEP)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/contactless/isodep.c)
+endif()
+
+if(CONFIG_SENSORS_SC7A20)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ${BK7258_NUTTX_OVERLAY_DIR}/drivers/sensors/sc7a20.c)
+endif()
+
+if(CONFIG_INPUT_GT9XX_STANDARD_IOCTL)
+  list(APPEND BK7258_AP_BASE_SRCS
+       ${NUTTX_DIR}/drivers/input/gt9xx.c)
+endif()
+
+if(CONFIG_BK7258_LIN)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lin.c)
+endif()
+
+if(CONFIG_BK7258_ETH)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_eth.c)
+endif()
+
+if(CONFIG_BK7258_DMA)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_dma.c)
+endif()
+
+if(CONFIG_BK7258_SLCD)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_slcd.c)
+endif()
+
+if(CONFIG_BK7258_SBC)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_sbc.c)
+endif()
+
+if(CONFIG_BK7258_DMIC)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_dmic.c)
+endif()
+
+if(CONFIG_BK7258_USBCDC)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_usbcdc.c)
+endif()
+
+if(CONFIG_BK7258_USBMSC)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_usbmsc.c)
+endif()
+
+if(CONFIG_BK7258_USBMODE)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_usbmode.c)
+endif()
+
+if(CONFIG_BK7258_LCD_8080)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lcd_8080.c)
+endif()
+
+if(CONFIG_BK7258_PWM)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_pwm.c)
+endif()
+
+if(CONFIG_BK7258_AUD OR CONFIG_BK7258_DVP OR
+   CONFIG_BK7258_JPEG_ENCODER OR CONFIG_BK7258_YUV_H264 OR
+   CONFIG_BK7258_MIC)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_media_root.c)
+endif()
+
+if(CONFIG_BK7258_AUD_LIFECYCLE_VALIDATION)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_aud_validation.c)
+endif()
+
+if(CONFIG_BK7258_DVP)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_dvp.c)
+endif()
+
+if(CONFIG_BK7258_DVP_SENSOR_GC2145)
+  # Retain the fitted sensor descriptor registered only through a section.
+  target_link_options(nuttx PRIVATE
+                      "LINKER:--undefined=gc2145_detect_sensor")
+endif()
+
+if(CONFIG_BK7258_DMA2D)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_dma2d.c)
+  bk7258_wrap_sdk_symbol(sys_drv_dma2d_set)
+endif()
+
+if(CONFIG_BK7258_LVGL_FB_ACCEL)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_lvgl_fb.c)
+endif()
+
+if(CONFIG_BK7258_SCALE_ROTATE)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_scale_rotate.c)
+endif()
+
+if(CONFIG_BK7258_JPEG_DECODER)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_jpeg_decoder.c)
+endif()
+
+if(CONFIG_BK7258_JPEG_M2M)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_jpeg_m2m.c)
+endif()
+
+if(CONFIG_BK7258_JPEG_M2M_VALIDATION)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_jpeg_m2m_validation.c)
+endif()
+
+if(CONFIG_BK7258_JPEG_ENCODER)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_jpeg_encoder.c)
+endif()
+
+if(CONFIG_BK7258_YUV_H264)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_yuv_h264.c)
+endif()
+
+if(CONFIG_BK7258_DVP_BOARD_GLUE)
+  bk7258_wrap_sdk_symbol(
+    bk_i2c_init_v2
+    bk_i2c_deinit_v2
+    bk_i2c_memory_read_v2
+    bk_i2c_memory_write_v2
+    bk_pm_module_vote_psram_ctrl
+    dvp_camera_mclk_enable)
+endif()
+
+foreach(BK7258_AP_PERIPHERAL MIC RTC SARADC)
+  if(CONFIG_BK7258_${BK7258_AP_PERIPHERAL})
+    string(TOLOWER ${BK7258_AP_PERIPHERAL} BK7258_AP_PERIPHERAL_FILE)
+    list(APPEND BK7258_AP_BASE_SRCS
+         ap/bk7258_${BK7258_AP_PERIPHERAL_FILE}.c)
+  endif()
+endforeach()
+
+if(CONFIG_BK7258_SARADC_VALIDATION)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_saradc_validation.c)
+endif()
+
+if(CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_mic_validation.c)
+endif()
+
+if(CONFIG_BK7258_SDIO)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_sdio.c)
+endif()
+
+foreach(BK7258_AP_PERIPHERAL SDMADC SPI QSPI CAN TIMER TRNG)
+  if(CONFIG_BK7258_${BK7258_AP_PERIPHERAL})
+    string(TOLOWER ${BK7258_AP_PERIPHERAL} BK7258_AP_PERIPHERAL_FILE)
+    list(APPEND BK7258_AP_BASE_SRCS
+         ap/bk7258_${BK7258_AP_PERIPHERAL_FILE}.c)
+  endif()
+endforeach()
+
+if(CONFIG_BK7258_USBHOST)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_usbhost.c)
+  bk7258_wrap_sdk_symbol(usbh_initialize usbh_deinitialize
+                         usbh_roothub_thread_send_queue)
+endif()
+
+if(CONFIG_BK7258_USBHOST_CH34X)
+  list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_usbserial_ch34x.c)
+endif()
+
+if(CONFIG_BK7258_BT_IPC_TRACE)
+  bk7258_wrap_sdk_symbol(
+    bt_conn_receive
+    bt_l2cap_receive
+    bt_l2cap_send
+    bt_conn_send
+    bt_send
+    bt_gatt_connected
+    bt_gatt_disconnected
+    bt_l2cap_create_pdu)
+else()
+  if(CONFIG_BK7258_BT_CONN_RX_REF_COMPAT)
+    bk7258_wrap_kernel_symbol(bt_conn_receive)
+  endif()
+
+  if(CONFIG_BK7258_BT_ATT_MTU_COMPAT)
+    bk7258_wrap_kernel_symbol(bt_l2cap_receive)
+  endif()
+endif()
+
+if(CONFIG_BK7258_RPTUN_MBOX)
+  list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rptun_mbox.c)
+endif()
+
+if(CONFIG_BK7258_RPTUN)
+  list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rptun.c)
+  if(CONFIG_BK7258_OTA_RPMSG)
+    list(APPEND BK7258_AP_BASE_SRCS common/bk7258_ota_rpmsg.c)
+  endif()
+  if(CONFIG_BK7258_USBMODE_RPMSG)
+    list(APPEND BK7258_AP_BASE_SRCS common/bk7258_usbmode_rpmsg.c)
+  endif()
+  if(CONFIG_BK7258_PM_CLOCK)
+    list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_pm_client.c)
+    if(CONFIG_BK7258_AP_CORE)
+      bk7258_wrap_sdk_symbol(bk_pm_clock_ctrl
+                             bk_pm_module_vote_cpu_freq)
+      if(CONFIG_BK7258_AUD OR CONFIG_BK7258_MIC OR CONFIG_BK7258_DMA2D OR
+         CONFIG_BK7258_SCALE_ROTATE OR
+         CONFIG_BK7258_JPEG_DECODER OR CONFIG_BK7258_JPEG_ENCODER OR
+         CONFIG_BK7258_YUV_H264 OR CONFIG_BK7258_DVP)
+        bk7258_wrap_sdk_symbol(bk_pm_module_vote_power_ctrl)
+      endif()
+      if(CONFIG_BK7258_AUD OR CONFIG_BK7258_MIC)
+        bk7258_wrap_sdk_symbol(sys_drv_aud_select_clock)
+      endif()
+      if(CONFIG_BK7258_DVP_H264_COMPAT)
+        bk7258_wrap_sdk_symbol(
+          bk_yuv_buf_start
+          bk_h264_encode_enable
+          sys_drv_int_group2_enable
+          sys_drv_core_intr_group2_enable
+          dvp_camera_i2c_write_uint8
+          video_register)
+      endif()
+    endif()
+  endif()
+  if(CONFIG_BK7258_TEMPERATURE)
+    list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_temperature_client.c)
+  endif()
+  if(CONFIG_BK7258_TEMPERATURE_VALIDATION)
+    list(APPEND BK7258_AP_BASE_SRCS ap/bk7258_temperature_validation.c)
+  endif()
+  if(CONFIG_BK7258_AP_SUPERVISOR)
+    list(APPEND BK7258_AP_BASE_SRCS
+         common/bk7258_rpmsg_health.c
+         ap/bk7258_ap_health.c)
+  endif()
+  if(CONFIG_BK7258_RPMSG_TEST)
+    list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rpmsg_test.c)
+  endif()
+  if(CONFIG_BK7258_RPMSGFS)
+    list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rpmsgfs.c)
+  endif()
+  if(CONFIG_BK7258_RPMSGFS_TEST)
+    list(APPEND BK7258_AP_BASE_SRCS common/bk7258_rpmsgfs_test.c)
+  endif()
+  if(CONFIG_BK7258_BT_IPC_TEST)
+    list(APPEND BK7258_AP_BASE_SRCS common/bk7258_bt_test.c)
+  endif()
+endif()
+
+set(BK7258_AP_UP_SRCS
+    ${BK7258_AP_BASE_SRCS}
+    ap/bk7258_cpu2_probe.c
+    ${BK7258_COMMON_LATE_SRCS})
+
+set(BK7258_AP_SMP_SRCS
+    ${BK7258_AP_BASE_SRCS}
+    ap/bk7258_ap_smp.c
+    ap/bk7258_ap_smp_advanced.c)
+
+if(CONFIG_BK7258_AP_IPI)
+  list(APPEND BK7258_AP_SMP_SRCS
+       common/bk7258_sdk_irq.c
+       ap/bk7258_ap_ipi.c)
+endif()
+
+list(APPEND BK7258_AP_SMP_SRCS ${BK7258_COMMON_LATE_SRCS})
+
+if(CONFIG_BK7258_AP_CORE)
+  if(CONFIG_BK7258_AP_SMP_BOOTSTRAP)
+    set(BK7258_SRCS ${BK7258_AP_SMP_SRCS})
+  else()
+    set(BK7258_SRCS ${BK7258_AP_UP_SRCS})
+  endif()
+else()
+  set(BK7258_SRCS ${BK7258_CP_SRCS})
+endif()
+
+target_sources(arch PRIVATE ${BK7258_SRCS})
+
+target_include_directories(arch PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/cp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ap
+    ${BK7258_NUTTX_OVERLAY_DIR}/include
+    ${NUTTX_DIR}/arch/arm/src/arm_m
+    ${NUTTX_DIR}/arch/arm/src/armv8-m)
+target_include_directories(arch SYSTEM PRIVATE
+    ${BK7258_SDK_INCLUDE_DIR}
+    ${BK7258_SDK_CONFIG_DIR})
+
+# The exported sdkconfig.h is part of the immutable static-library ABI and stays
+# authoritative.  Keep only OpenVela feature-local definitions here.
+
+if(NOT CONFIG_BK7258_AP_CORE)
+  bk7258_wrap_kernel_symbol(arm_doirq nxsched_resume_scheduler)
+elseif(CONFIG_BK7258_AP_SMP_SCHED_ONLINE)
+  bk7258_wrap_kernel_symbol(arm_doirq nxsched_resume_scheduler nx_bringup)
+endif()
+
+target_link_options(nuttx PRIVATE
+                    "LINKER:--build-id=none"
+                    "LINKER:--entry=_vectors")
+
+# CP owns Flash access. The SDK ABI adapters in common/bk7258_sdk_partition.c
+# consume the generated layout contract selected by the board.
+
+if(NOT CONFIG_BK7258_AP_CORE)
+  foreach(BK7258_PARTITION_SYMBOL
+          bk_flash_partition_get_info
+          bk_flash_partition_read
+          bk_flash_partition_write
+          bk_flash_partition_erase
+          bk_flash_partition_write_perm_check_by_addr)
+    target_link_options(nuttx PRIVATE
+                        "LINKER:--wrap=${BK7258_PARTITION_SYMBOL}")
+  endforeach()
+endif()
+
+# sdk rebuild resolves the profile-specific closure.  The chip links every
+# resulting input without repeating vendor library names or feature maps.
+file(GLOB BK7258_SDK_LINK_INPUTS CONFIGURE_DEPENDS
+     "${BK7258_SDK_LIBS_DIR}/*.a"
+     "${BK7258_SDK_LIBS_DIR}/*.o"
+     "${BK7258_SDK_LIBS_DIR}/*.obj")
+list(SORT BK7258_SDK_LINK_INPUTS)
+if(NOT BK7258_SDK_LINK_INPUTS)
+  message(FATAL_ERROR "BK7258 SDK profile has no resolved link inputs")
+endif()
+foreach(BK7258_SDK_LINK_INPUT ${BK7258_SDK_LINK_INPUTS})
+  nuttx_add_extra_library("${BK7258_SDK_LINK_INPUT}")
+endforeach()

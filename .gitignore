@@ -2,6 +2,7 @@
 build/
 out/
 cmake_out/
+tmp/
 *.o
 *.a
 *.elf

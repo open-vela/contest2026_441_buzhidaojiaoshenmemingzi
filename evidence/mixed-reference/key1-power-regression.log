@@ -1,0 +1,140 @@
+power key: 3 seconds reached; release to shut down
+power key: released after 3 seconds, shutting down
+poweroff: audio clock and AUDP vote released
+poweroff: display rail released, refs=0
+PWC: GPIO12 falling-edge wake armed
+PWC: force-deep-sleep request returned without reset
+poweroff: display rail restored, refs=1
+poweroff: audio power restored
+power key: shutdown failed: -1
+power key: vision request started
+vision_badge: taking a picture
+vision_badge: opening /dev/video0
+bk7258_camera_imgsensor: init: entry
+bk7258_camera_imgsensor: init: power_on done
+bk7258_camera_imgsensor: init: reset done
+bk7258_camera_imgsensor: init: dvp_pinmux done
+bk7258_camera_imgsensor: init: mclk_enable done, reg0x0a=0x002785cc reg0x0d=0x00000209
+bk7258_camera_imgsensor: init: i2c1_init done
+bk7258_camera_imgsensor: chip ID = 0x2145 (expected 0x2145)
+bk7258_camera_imgsensor: init: writing 585 init registers
+bk7258_camera_imgsensor: init: init register table write OK, writing the 640x480 mode
+bk7258_camera_imgsensor: init: complete at 640x480 30fps, sensor now continuously outputting DVP signal
+bk7258_camera_imgdata: init: entry
+bk7258_yuv_buf: init: power/clock enabled, reg0x10=0x20000000 reg0x0d=0x00000209
+bk7258_yuv_buf: init: global_ctrl=0x00000003 (soft_reset released, clk_gate_bypass set, per yuv_buf_ll_init())
+bk7258_yuv_buf: init: dev_id=0x00797576->0x00797576 dev_version=0x00010002->0x00010002 dev_status=0x00000000->0x00000000 (in-reset -> released)
+bk7258_yuv_buf: init: complete, irq=74 attached and enabled
+bk7258_dma: init: prio_mode=0x00000001 secure_attr=0x000000ff priv_attr=0x000000ff irq=27
+bk7258_jpeg_enc: init: power/clock enabled, reg0x0c=0xdf78809c reg0x10=0x20000000
+bk7258_jpeg_enc: init: global_ctrl=0x00000001 (soft_reset released, per jpeg_ll_init())
+bk7258_jpeg_enc: init: dev_id=0x6a706765->0x6a706765 dev_version=0x00010002->0x00010002 dev_status=0x00000000->0x00000000 (in-reset -> released)
+bk7258_jpeg_enc: init: complete, irq=41 attached and enabled
+bk7258_camera_imgdata: init: complete
+vision_badge: camera opened, configuring capture
+bk7258_camera_imgdata: set_buf: addr=0x601901a0 frame_bytes=262144 (buffer size given=262144)
+bk7258_camera_imgdata: start_capture: entry, frame_buf=0x601901a0 frame_buf_size=262144
+bk7258_yuv_buf: configure(640x480): x_pixel=80 y_pixel=60 frame_blk=2400
+bk7258_yuv_buf: configure: global_ctrl=0x00000003 ctrl=0x00080e00 pixel=0x09603c50 resize_pixel=0x000078a0 int_masks=0x0000001c int_en=0x000001d3 em_base_addr=0x6033c200 emr_base_addr=0x6033c200
+bk7258_yuv_buf: [start_capture: started] global_ctrl=0x00000003 ctrl=0x00080e01 int_en=0x000001d3 int_status=0x00000000 em_base_addr=0x6033c200 dev_id=0x00797576 dev_status=0x00000000
+bk7258_yuv_buf: [start_capture: started] isr=0 frame=0 vsync=0 err=0 last_status=0x00000000 err_status=0x00000000
+bk7258_jpeg_enc: [start_capture: started] global_ctrl=0x00000001 cfg=0x3c005000 int_en=0x00000000 int_status=0x00000000 byte_count_pfrm=0 fifo_status=0x04000000 y_count=0x00000000 dev_id=0x6a706765 dev_status=0x00000000
+bk7258_jpeg_enc: [start_capture: started] target_byte_h=0 target_byte_l=0 out_buf=0x00000000 fifo_addr=0x48000014
+bk7258_jpeg_enc: [start_capture: started] isr=0 frame=0 sof=0 err=0 last_status=0x00000000 last_bytes=0
+bk7258_camera_imgdata: start_capture: complete at 640x480 (JPEG, 0 buffer bytes), watchdog=500ms
+bk7258_camera_imgsensor: start_capture: entry
+bk7258_camera_imgsensor: start_capture: OK at 640x480 30fps (sensor streaming continuously since init)
+vision_badge: camera started, waiting up to 5000 ms for a frame
+bk7258_camera_imgdata: sw_jpeg first frame len=27454 dst[0..3]=ff d8 ff e0 tail=ff d9
+bk7258_camera_imgdata: set_buf: addr=0x601d01a0 frame_bytes=262144 (buffer size given=262144)
+vision_badge: camera frame received
+bk7258_camera_imgdata: stop_capture: ring_over=0 resync=0 no_soi=0 sampler_skipped=0 hw_busy=0 (target 5 fps)
+bk7258_camera_imgdata: stop_capture: frames=1 timeouts=0 elapsed=665ms measured=1.50 fps
+bk7258_camera_imgdata: stop_capture: sw_jpeg frames=1 dropped_oldest=0 sampler_skipped=0 busy=17 nobuf=0 due_in=-405 set_buf_live=1 armed=1 encoding=0 (target 5 fps)
+bk7258_camera_imgdata: stop_capture: jpeg chunks=0 short=0 resets=0 vsyncs=0 hdr_fail=0 bit_fixed=0 bit_fail=0 eoi_delta=0 dma_remain=0 finish_pending=0 pending_mask=0x00000000 pending_delta=0
+bk7258_camera_imgdata: stop_capture: validator runs=0 total_ticks=0 avg=0 ms
+bk7258_camera_imgdata: stop_capture: bytes[0-4..+4] = 00 00 00 00 | 00 00 00 00
+bk7258_jpeg_enc: [stop_capture] global_ctrl=0x00000001 cfg=0x3c005000 int_en=0x00000000 int_status=0x00000000 byte_count_pfrm=0 fifo_status=0x04000000 y_count=0x00000000 dev_id=0x6a706765 dev_status=0x00000000
+bk7258_jpeg_enc: [stop_capture] target_byte_h=0 target_byte_l=0 out_buf=0x00000000 fifo_addr=0x48000014
+bk7258_jpeg_enc: [stop_capture] isr=0 frame=0 sof=0 err=0 last_status=0x00000000 last_bytes=0
+bk7258_camera_imgsensor: uninit: sensor powered off, MCLK gate closed
+bk7258_camera_imgdata: uninit: frames=1 timeouts=0 set_buf=2 rejected=0
+bk7258_yuv_buf: [uninit] global_ctrl=0x00000003 ctrl=0x00080e00 int_en=0x00000000 int_status=0x00000000 em_base_addr=0x6033c200 dev_id=0x00797576 dev_status=0x00000000
+bk7258_yuv_buf: [uninit] isr=36 frame=18 vsync=18 err=0 last_status=0x00000001 err_status=0x00000000
+bk7258_camera_imgdata: uninit: frame[0..31] = 55 56 55 dd cd 57 57 d5 54 19 75 b7 95 57 d6 45 55 e4 57 7f 17 76 5f 55 1d 51 75 d4 59 dc 51 5d
+vision_badge: picture ready, 640x480, 27454 bytes
+vision_badge: sending the picture to MiMo
+vision_badge: UTC 2026-08-30 11:24:03
+SDIO CMD17 timeout status=0x00000080
+vision_badge: MiMo key is not available in SD-NAND (-110)
+vision_badge: stage=query error=-110
+power key: vision request started
+vision_badge: taking a picture
+vision_badge: opening /dev/video0
+bk7258_camera_imgsensor: init: entry
+bk7258_camera_imgsensor: init: power_on done
+bk7258_camera_imgsensor: init: reset done
+bk7258_camera_imgsensor: init: dvp_pinmux done
+bk7258_camera_imgsensor: init: mclk_enable done, reg0x0a=0x002785cc reg0x0d=0x00000209
+bk7258_camera_imgsensor: init: i2c1_init done
+bk7258_camera_imgsensor: chip ID = 0x2145 (expected 0x2145)
+bk7258_camera_imgsensor: init: writing 585 init registers
+bk7258_camera_imgsensor: init: init register table write OK, writing the 640x480 mode
+bk7258_camera_imgsensor: init: complete at 640x480 30fps, sensor now continuously outputting DVP signal
+bk7258_camera_imgdata: init: entry
+bk7258_yuv_buf: init: power/clock enabled, reg0x10=0x20000000 reg0x0d=0x00000209
+bk7258_yuv_buf: init: global_ctrl=0x00000003 (soft_reset released, clk_gate_bypass set, per yuv_buf_ll_init())
+bk7258_yuv_buf: init: dev_id=0x00797576->0x00797576 dev_version=0x00010002->0x00010002 dev_status=0x00000000->0x00000000 (in-reset -> released)
+bk7258_yuv_buf: init: complete, irq=74 attached and enabled
+bk7258_dma: init: prio_mode=0x00000001 secure_attr=0x000000ff priv_attr=0x000000ff irq=27
+bk7258_jpeg_enc: init: power/clock enabled, reg0x0c=0xdf78809c reg0x10=0x20000000
+bk7258_jpeg_enc: init: global_ctrl=0x00000001 (soft_reset released, per jpeg_ll_init())
+bk7258_jpeg_enc: init: dev_id=0x6a706765->0x6a706765 dev_version=0x00010002->0x00010002 dev_status=0x00000000->0x00000000 (in-reset -> released)
+bk7258_jpeg_enc: init: complete, irq=41 attached and enabled
+bk7258_camera_imgdata: init: complete
+vision_badge: camera opened, configuring capture
+bk7258_camera_imgdata: set_buf: addr=0x601901a0 frame_bytes=262144 (buffer size given=262144)
+bk7258_camera_imgdata: start_capture: entry, frame_buf=0x601901a0 frame_buf_size=262144
+bk7258_yuv_buf: configure(640x480): x_pixel=80 y_pixel=60 frame_blk=2400
+bk7258_yuv_buf: configure: global_ctrl=0x00000003 ctrl=0x00080e00 pixel=0x09603c50 resize_pixel=0x000078a0 int_masks=0x0000001c int_en=0x000001d3 em_base_addr=0x6033c200 emr_base_addr=0x6033c200
+bk7258_yuv_buf: [start_capture: started] global_ctrl=0x00000003 ctrl=0x00080e01 int_en=0x000001d3 int_status=0x00000000 em_base_addr=0x6033c200 dev_id=0x00797576 dev_status=0x00000000
+bk7258_yuv_buf: [start_capture: started] isr=0 frame=0 vsync=0 err=0 last_status=0x00000000 err_status=0x00000000
+bk7258_jpeg_enc: [start_capture: started] global_ctrl=0x00000001 cfg=0x3c005000 int_en=0x00000000 int_status=0x00000000 byte_count_pfrm=0 fifo_status=0x04000000 y_count=0x00000000 dev_id=0x6a706765 dev_status=0x00000000
+bk7258_jpeg_enc: [start_capture: started] target_byte_h=0 target_byte_l=0 out_buf=0x00000000 fifo_addr=0x48000014
+bk7258_jpeg_enc: [start_capture: started] isr=0 frame=0 sof=0 err=0 last_status=0x00000000 last_bytes=0
+bk7258_camera_imgdata: start_capture: complete at 640x480 (JPEG, 0 buffer bytes), watchdog=500ms
+bk7258_camera_imgsensor: start_capture: entry
+bk7258_camera_imgsensor: start_capture: OK at 640x480 30fps (sensor streaming continuously since init)
+vision_badge: camera started, waiting up to 5000 ms for a frame
+bk7258_camera_imgdata: sw_jpeg first frame len=28593 dst[0..3]=ff d8 ff e0 tail=ff d9
+bk7258_camera_imgdata: set_buf: addr=0x601d01a0 frame_bytes=262144 (buffer size given=262144)
+vision_badge: camera frame received
+bk7258_camera_imgdata: stop_capture: ring_over=0 resync=0 no_soi=0 sampler_skipped=0 hw_busy=0 (target 5 fps)
+bk7258_camera_imgdata: stop_capture: frames=1 timeouts=0 elapsed=678ms measured=1.47 fps
+bk7258_camera_imgdata: stop_capture: sw_jpeg frames=1 dropped_oldest=0 sampler_skipped=0 busy=18 nobuf=0 due_in=-405 set_buf_live=1 armed=1 encoding=0 (target 5 fps)
+bk7258_camera_imgdata: stop_capture: jpeg chunks=0 short=0 resets=0 vsyncs=0 hdr_fail=0 bit_fixed=0 bit_fail=0 eoi_delta=0 dma_remain=0 finish_pending=0 pending_mask=0x00000000 pending_delta=0
+bk7258_camera_imgdata: stop_capture: validator runs=0 total_ticks=0 avg=0 ms
+bk7258_camera_imgdata: stop_capture: bytes[0-4..+4] = 00 00 00 00 | 00 00 00 00
+bk7258_jpeg_enc: [stop_capture] global_ctrl=0x00000001 cfg=0x3c005000 int_en=0x00000000 int_status=0x00000000 byte_count_pfrm=0 fifo_status=0x04000000 y_count=0x00000000 dev_id=0x6a706765 dev_status=0x00000000
+bk7258_jpeg_enc: [stop_capture] target_byte_h=0 target_byte_l=0 out_buf=0x00000000 fifo_addr=0x48000014
+bk7258_jpeg_enc: [stop_capture] isr=0 frame=0 sof=0 err=0 last_status=0x00000000 last_bytes=0
+bk7258_camera_imgsensor: uninit: sensor powered off, MCLK gate closed
+bk7258_camera_imgdata: uninit: frames=1 timeouts=0 set_buf=2 rejected=0
+bk7258_yuv_buf: [uninit] global_ctrl=0x00000003 ctrl=0x00080e00 int_en=0x00000000 int_status=0x00000000 em_base_addr=0x6033c200 dev_id=0x00797576 dev_status=0x00000000
+bk7258_yuv_buf: [uninit] isr=38 frame=19 vsync=19 err=0 last_status=0x00000001 err_status=0x00000000
+bk7258_camera_imgdata: uninit: frame[0..31] = 55 56 55 dd cd 57 57 d5 54 19 75 b7 95 57 d6 45 55 e4 57 7f 17 76 5f 55 1d 51 75 d4 59 dc 51 5d
+vision_badge: picture ready, 640x480, 28593 bytes
+vision_badge: sending the picture to MiMo
+vision_badge: UTC 2026-08-30 11:24:09
+SDIO CMD17 timeout status=0x00000080
+vision_badge: MiMo key is not available in SD-NAND (-110)
+vision_badge: stage=query error=-110
+power key: 3 seconds reached; release to shut down
+power key: released after 3 seconds, shutting down
+poweroff: audio clock and AUDP vote released
+poweroff: display rail released, refs=0
+PWC: GPIO12 falling-edge wake armed
+PWC: force-deep-sleep request returned without reset
+poweroff: display rail restored, refs=1
+poweroff: audio power restored
+power key: shutdown failed: -1

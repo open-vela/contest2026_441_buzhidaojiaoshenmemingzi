@@ -1,0 +1,681 @@
+############################################################################
+# chips/bk7258/Make.defs
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Beken BK7258 (Cortex-M33) custom chip definitions for NuttX.
+#
+# The chip port has one root build entry and three implementation groups:
+#
+#   common/  sources used by both CP and the N7 AP-UP baseline
+#   cp/      CPU0/CP-only startup, peripherals and SDK integration
+#   ap/      physical CPU1 AP-UP startup and main path
+#
+# AP-SMP uses a separate source group without duplicating the root Kconfig,
+# Make.defs or public include directory.
+############################################################################
+
+include armv8-m/Make.defs
+
+ifeq ($(CONFIG_BK7258_TOUCH)$(CONFIG_BK7258_AP_CORE),yy)
+$(error CONFIG_BK7258_TOUCH is CP-only; the board selector must depend on !BK7258_AP_CORE)
+endif
+
+# The arch Makefile already adds chip/ itself.  Add the role subdirectories for
+# source lookup and chip-private quoted includes.
+
+VPATH += chip$(DELIM)common
+VPATH += chip$(DELIM)cp
+VPATH += chip$(DELIM)ap
+VPATH += chip$(DELIM)bootloader$(DELIM)bl2
+VPATH += armv8-m
+BK7258_NUTTX_OVERLAY := $(TOPDIR)$(DELIM)..$(DELIM)vendor$(DELIM)beken$(DELIM)nuttx
+VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)lcd
+VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)input
+VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)sensors
+VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)video
+VPATH += $(BK7258_NUTTX_OVERLAY)$(DELIM)drivers$(DELIM)contactless
+VPATH += $(TOPDIR)$(DELIM)drivers$(DELIM)contactless
+VPATH += $(TOPDIR)$(DELIM)drivers$(DELIM)input
+
+ifeq ($(CONFIG_CL_MFRC522_FRAME)$(CONFIG_CL_MFRC522),yy)
+$(error select exactly one MFRC522 implementation)
+endif
+
+ifeq ($(CONFIG_INPUT_GT9XX_STANDARD_IOCTL)$(CONFIG_INPUT_GT9XX),yy)
+$(error select exactly one GT9xx implementation)
+endif
+
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)common
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)cp
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)chip$(DELIM)ap
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)armv8-m
+
+# Upstream moved the Cortex-M headers (exc_return.h, ram_vectors.h,
+# systick.h) to arm_m/ but armv8-m/Make.defs only extends VPATH, which
+# governs source lookup and not quoted #include resolution.  Add the
+# directory explicitly so a clean (post-distclean) dependency pass finds
+# them.
+
+INCLUDES += ${INCDIR_PREFIX}$(ARCH_SRCDIR)$(DELIM)arm_m
+INCLUDES += ${INCDIR_PREFIX}$(BK7258_NUTTX_OVERLAY)$(DELIM)include
+
+# The unified builder injects the one verified SDK profile for this role.
+
+ifeq ($(wildcard $(BK7258_SDK_DIR)$(DELIM)include),)
+$(error BK7258_SDK_DIR is required; use tools/bk7258/bk7258.py build)
+endif
+
+BK7258_SDK_LIBS_DIR := $(BK7258_SDK_DIR)$(DELIM)libs
+CFLAGS += -isystem $(BK7258_SDK_DIR)$(DELIM)include
+CFLAGS += -isystem $(BK7258_SDK_DIR)$(DELIM)config
+
+# Shared N7 sources.  lowputc/serial remain shared in this structural-only
+# move: the current AP ELF still exports arm_lowputc()/up_putc(), so making
+# them CP-only would change the verified AP baseline.
+
+BK7258_COMMON_CSRCS  = bk7258_lowputc.c
+BK7258_COMMON_CSRCS += bk7258_serial.c
+BK7258_COMMON_CSRCS += bk7258_irq.c
+BK7258_COMMON_CSRCS += bk7258_timerisr.c
+BK7258_COMMON_CSRCS += bk7258_allocateheap.c
+BK7258_COMMON_CSRCS += bk7258_os_adapt.c
+BK7258_COMMON_CSRCS += bk7258_sdk_stubs.c
+BK7258_COMMON_CSRCS += bk7258_idle.c
+BK7258_RUNTIME_CSRCS = $(wordlist 3,8,$(BK7258_COMMON_CSRCS))
+
+# CPU0/CP sources.  Preserve the pre-refactor source order so archive/link
+# ordering and vector handler addresses remain unchanged.
+
+BK7258_CP_CSRCS  = bk7258_vectors.c
+BK7258_CP_CSRCS += bk7258_start.c
+ifeq ($(CONFIG_BK7258_CONSOLE_RTT),y)
+# RTT supplies the early polled primitive without claiming a UART.
+INCLUDES += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)drivers$(DELIM)segger$(DELIM)SystemView$(DELIM)SEGGER
+INCLUDES += ${INCDIR_PREFIX}$(TOPDIR)$(DELIM)drivers$(DELIM)segger$(DELIM)config
+BK7258_CP_CSRCS += bk7258_rtt_lowputc.c
+else
+# bk7258_lowputc.c also supplies side-effect-free arm_lowputc()/up_putc()
+# hooks for CONSOLE_NONE.  Generic NuttX assert/syslog code references these
+# hooks even when no physical console is selected.
+BK7258_CP_CSRCS += bk7258_lowputc.c
+endif
+ifneq ($(filter y,$(CONFIG_BK7258_UART0) $(CONFIG_BK7258_UART1) $(CONFIG_BK7258_UART2)),)
+BK7258_CP_CSRCS += bk7258_serial.c
+endif
+BK7258_CP_CSRCS += $(BK7258_RUNTIME_CSRCS)
+BK7258_CP_CSRCS += bk7258_stage_runner.c
+BK7258_CP_CSRCS += bk7258_cp_platform.c
+BK7258_CP_CSRCS += bk7258_flash.c
+BK7258_CP_CSRCS += bk7258_sdk_partition.c
+ifeq ($(CONFIG_BK7258_FLASH_MTD),y)
+BK7258_CP_CSRCS += bk7258_flash_mtd.c
+endif
+ifeq ($(CONFIG_BK7258_IDENTITY),y)
+BK7258_CP_CSRCS += bk7258_identity.c
+endif
+ifeq ($(CONFIG_BOARDCTL_RESET_CAUSE),y)
+BK7258_CP_CSRCS += bk7258_reset_cause.c
+endif
+
+ifeq ($(CONFIG_BK7258_SWD_DEBUG),y)
+BK7258_CP_CSRCS += bk7258_swd_debug.c
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+# bk_gpio_driver_init() lives in the immutable SDK archive.  Its default-map
+# helper rewrites every GPIO, including debugger-owned P0/P1, before any
+# caller can restore SWD.  The RTT profile supplies a CP-only debug wrapper
+# which leaves the bootloader-established pin state intact; GPIO clients
+# still get the SDK driver's HAL/IRQ initialization and configure their own
+# pins explicitly.
+LDFLAGS += --wrap=gpio_hal_default_map_init
+endif
+endif
+
+ifeq ($(CONFIG_BK7258_SDK_IPC_RUNTIME),y)
+BK7258_CP_CSRCS += bk7258_sdk_runtime.c
+endif
+
+ifeq ($(CONFIG_BK7258_PSRAM),y)
+BK7258_CP_CSRCS += bk7258_psram.c
+endif
+
+ifeq ($(CONFIG_BK7258_AP_CONTROL),y)
+BK7258_CP_CSRCS += bk7258_ap_control.c
+endif
+
+ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
+BK7258_CP_CSRCS += bk7258_ap_supervisor.c
+endif
+
+ifneq ($(filter y,$(CONFIG_BK7258_BT_IPC) $(CONFIG_BK7258_WIFI_VNET)),)
+BK7258_CP_CSRCS += bk7258_bt_controller.c
+BK7258_CP_CSRCS += bk7258_radio_storage.c
+endif
+
+ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
+BK7258_CP_CSRCS += bk7258_wifi_control.c
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=malloc
+endif
+endif
+
+ifeq ($(CONFIG_BK7258_WIFI_PACKET_DIAG),y)
+BK7258_CP_CSRCS += bk7258_wifi_packet_diag.c
+LDFLAGS += --wrap=ethernetif_input
+LDFLAGS += --wrap=udp_sendto_if_src
+endif
+
+ifeq ($(CONFIG_BK7258_BT_IPC),y)
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=bk_bluetooth_init --wrap=bk_bluetooth_deinit --wrap=rand
+endif
+endif
+
+ifeq ($(CONFIG_BK7258_RPTUN_MBOX),y)
+BK7258_CP_CSRCS += bk7258_rptun_mbox.c
+endif
+
+ifeq ($(CONFIG_BK7258_RPTUN),y)
+BK7258_CP_CSRCS += bk7258_rptun.c
+ifeq ($(CONFIG_BK7258_OTA_RPMSG),y)
+BK7258_CP_CSRCS += bk7258_ota_rpmsg.c
+endif
+ifeq ($(CONFIG_BK7258_USBMODE_RPMSG),y)
+BK7258_CP_CSRCS += bk7258_usbmode_rpmsg.c
+endif
+ifeq ($(CONFIG_BK7258_PM_CLOCK),y)
+BK7258_CP_CSRCS += bk7258_pm_server.c
+endif
+ifeq ($(CONFIG_BK7258_TEMPERATURE),y)
+BK7258_CP_CSRCS += bk7258_temperature_server.c
+endif
+ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
+BK7258_CP_CSRCS += bk7258_rpmsg_health.c
+endif
+ifeq ($(CONFIG_BK7258_RPMSG_TEST),y)
+BK7258_CP_CSRCS += bk7258_rpmsg_test.c
+endif
+ifeq ($(CONFIG_BK7258_RPMSGFS_TEST),y)
+BK7258_CP_CSRCS += bk7258_rpmsgfs_test.c
+endif
+ifeq ($(CONFIG_BK7258_BT_IPC_TEST),y)
+BK7258_CP_CSRCS += bk7258_bt_test.c
+endif
+endif
+
+# Stage B: replace the SDK private CM33 callback table with NuttX irq_attach()
+# ownership for SDK interrupt sources 0..63.  The implementation lives in
+# common/; this gate activates it for the CP image.
+
+ifeq ($(CONFIG_BK7258_SDK_IRQ_BRIDGE),y)
+BK7258_CP_CSRCS += bk7258_sdk_irq.c
+endif
+
+ifeq ($(CONFIG_BK7258_SDK_IRQ_TIMER_TEST),y)
+BK7258_CP_CSRCS += bk7258_sdk_irq_timer_test.c
+endif
+
+ifeq ($(CONFIG_BK7258_SDK_TIMER_SELFTEST),y)
+BK7258_CP_CSRCS += bk7258_sdk_timer_selftest.c
+endif
+
+ifeq ($(CONFIG_BK7258_GPIO_FOUNDATION_TEST),y)
+BK7258_CP_CSRCS += bk7258_gpio_foundation_test.c
+endif
+
+ifeq ($(CONFIG_BK7258_GPIO_IRQ_TEST),y)
+BK7258_CP_CSRCS += bk7258_gpio_irq_test.c
+endif
+
+ifeq ($(CONFIG_BK7258_GPIO_LOWERHALF),y)
+BK7258_CP_CSRCS += bk7258_gpio_cp_irq.c
+BK7258_CP_CSRCS += bk7258_gpio_lowerhalf.c
+endif
+
+ifeq ($(CONFIG_BK7258_CP_GPIO_INPUT),y)
+BK7258_CP_CSRCS += bk7258_gpio_input.c
+endif
+
+# SDK-aligned CP performance startup: physical CPU0 at 240 MHz.
+
+ifeq ($(CONFIG_BK7258_CLOCK_240M),y)
+BK7258_CP_CSRCS += bk7258_clock.c
+endif
+
+# Compile the common Cortex-M SysTick lower half (arm_systick.c, which
+# provides systick_initialize() used by bk7258_timerisr.c).  The shared
+# arm_m/Make.defs gates this on CONFIG_ARM_M_SYSTICK, a symbol no Kconfig
+# ever defines (a latent typo -- the real symbol is CONFIG_ARM_SYSTICK,
+# which CONFIG_ARMV8M_SYSTICK selects).  VPATH already lists arm_m/, so
+# referencing the file by basename resolves to arch/arm/src/arm_m/arm_systick.c
+# without touching the upstream tree.
+
+ifeq ($(CONFIG_ARM_SYSTICK),y)
+BK7258_CP_CSRCS += arm_systick.c
+endif
+
+# Stage N4-D2: BK7258 DVFS lower half and optional procfs control.
+
+ifeq ($(CONFIG_BK7258_DVFS),y)
+BK7258_CP_CSRCS += bk7258_dvfs.c
+endif
+
+ifeq ($(CONFIG_BK7258_PM_SOFT_OFF),y)
+BK7258_CP_CSRCS += bk7258_pm_soft_off.c
+endif
+
+ifeq ($(CONFIG_BK7258_PM_POLICY),y)
+BK7258_CP_CSRCS += bk7258_pm_policy.c
+LDFLAGS += --wrap=bk_pm_module_vote_cpu_freq
+endif
+
+ifeq ($(CONFIG_BK7258_PM_COORDINATED_STANDBY),y)
+BK7258_CP_CSRCS += bk7258_pm_activity.c
+BK7258_CP_CSRCS += bk7258_pm_coord_cp.c
+LDFLAGS += --wrap=pm_low_voltage_bsp_restore
+LDFLAGS += --wrap=bk_pm_module_vote_sleep_ctrl
+endif
+
+ifeq ($(CONFIG_BK7258_DVFS_PROCFS),y)
+BK7258_CP_CSRCS += bk7258_dvfs_procfs.c
+endif
+
+# Stage B2: APB watchdog lower-half driver.  Takes over the bootloader's WDT
+# after boot and registers /dev/watchdog0.  Default y.
+
+ifeq ($(CONFIG_BK7258_WDT),y)
+BK7258_CP_CSRCS += bk7258_wdt.c
+endif
+
+ifneq ($(filter y,$(CONFIG_BK7258_WDT) $(CONFIG_BK7258_OTA)),)
+BK7258_CP_CSRCS += bk7258_system_reset.c
+endif
+
+ifneq ($(filter y,$(CONFIG_BK7258_OTA) $(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC) $(CONFIG_BK7258_FLASH_MTD) $(CONFIG_BK7258_BT_IPC) $(CONFIG_BK7258_WIFI_VNET)),)
+BK7258_CP_CSRCS += bk7258_storage.c
+endif
+
+ifeq ($(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC),y)
+BK7258_CP_CSRCS += bk7258_reset_marker.c
+endif
+
+ifeq ($(CONFIG_BK7258_OTA),y)
+BK7258_CP_CSRCS += bk7258_boot_slot.c
+BK7258_CP_CSRCS += bk7258_ota_flash.c
+BK7258_CP_CSRCS += bk7258_ota_image.c
+BK7258_CP_CSRCS += bk7258_ota_pair.c
+BK7258_CP_CSRCS += bk7258_ota_boot_control.c
+endif
+
+ifeq ($(CONFIG_BK7258_IRDA),y)
+BK7258_CP_CSRCS += bk7258_irda.c
+endif
+
+ifeq ($(CONFIG_BK7258_SARADC_SERVER),y)
+BK7258_CP_CSRCS += bk7258_saradc_server.c
+endif
+
+ifeq ($(CONFIG_BK7258_TOUCH),y)
+BK7258_CP_CSRCS += bk7258_touch.c
+endif
+
+# Physical CPU1 runs the independently linked AP image.  Keep AP-UP and AP-SMP
+# source selection explicit so the board-verified N8-A probe remains an exact
+# fallback while N8-B1 replaces only the CPU2 implementation.
+
+BK7258_AP_BASE_CSRCS  = bk7258_ap_vectors.c
+BK7258_AP_BASE_CSRCS += bk7258_ap_start.c
+BK7258_AP_BASE_CSRCS += $(wordlist 1,5,$(BK7258_COMMON_CSRCS))
+BK7258_AP_BASE_CSRCS += bk7258_stage_runner.c
+BK7258_AP_BASE_CSRCS += bk7258_pinmux.c
+BK7258_AP_BASE_CSRCS += bk7258_ap_platform.c
+BK7258_AP_BASE_CSRCS += bk7258_ap_lifecycle.c
+
+ifeq ($(CONFIG_BK7258_PM_COORDINATED_STANDBY),y)
+BK7258_AP_BASE_CSRCS += bk7258_pm_activity.c
+BK7258_AP_BASE_CSRCS += bk7258_pm_coord_ap.c
+endif
+
+ifeq ($(CONFIG_BK7258_SDK_IPC_RUNTIME),y)
+BK7258_AP_BASE_CSRCS += bk7258_sdk_runtime.c
+endif
+
+ifeq ($(CONFIG_BK7258_PSRAM),y)
+BK7258_AP_BASE_CSRCS += bk7258_psram.c
+endif
+
+ifeq ($(CONFIG_BK7258_BT_IPC),y)
+BK7258_AP_BASE_CSRCS += bk7258_bt_hci.c
+endif
+
+ifeq ($(CONFIG_BK7258_BLE_GATT),y)
+BK7258_AP_BASE_CSRCS += bk7258_ble_gatt.c
+endif
+
+ifeq ($(CONFIG_BK7258_OTA_MANAGER),y)
+ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
+ifeq ($(wildcard $(BK7258_OTA_CATALOG_PUBLIC_SOURCE)),)
+$(error BK7258_OTA_MANAGER requires the generated catalog public root)
+endif
+endif
+BK7258_AP_BASE_CSRCS += bk7258_active_image.c
+BK7258_AP_BASE_CSRCS += bk7258_ota_manager.c
+BK7258_AP_BASE_CSRCS += bk7258_ota_catalog.c
+BK7258_AP_BASE_CSRCS += $(BK7258_OTA_CATALOG_PUBLIC_SOURCE)
+INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)include
+endif
+
+ifeq ($(CONFIG_BK7258_OTA_SOURCE_FILE),y)
+BK7258_AP_BASE_CSRCS += bk7258_ota_source_file.c
+endif
+
+ifeq ($(CONFIG_BK7258_OTA_SOURCE_HTTP),y)
+BK7258_AP_BASE_CSRCS += bk7258_ota_source_http.c
+endif
+
+ifeq ($(CONFIG_BK7258_OTA_SOURCE_USB),y)
+BK7258_AP_BASE_CSRCS += bk7258_ota_source_usb.c
+endif
+
+ifeq ($(CONFIG_BK7258_WIFI_VNET),y)
+BK7258_AP_BASE_CSRCS += bk7258_wifi.c
+BK7258_AP_BASE_CSRCS += bk7258_wifi_control.c
+INCLUDES += ${INCDIR_PREFIX}$(APPDIR)$(DELIM)include
+endif
+ifeq ($(CONFIG_BK7258_BT_IPC)$(CONFIG_WIRELESS_BLUETOOTH_HOST),yy)
+BK7258_AP_BASE_CSRCS += bk7258_ble_scan.c
+endif
+ifneq ($(filter y yy,$(CONFIG_BK7258_WIFI_VNET) $(CONFIG_BK7258_BT_IPC_TEST) $(CONFIG_BK7258_BT_IPC)$(CONFIG_WIRELESS_BLUETOOTH_HOST)),)
+BK7258_AP_BASE_CSRCS += bk7258_radio_mode.c
+endif
+
+# AP-owned NuttX peripheral wrappers.  Keep these in AP_BASE so AP-UP and
+# AP-SMP use the same lower-half implementations.
+
+ifeq ($(CONFIG_BK7258_AUD),y)
+BK7258_AP_BASE_CSRCS += bk7258_aud.c
+endif
+ifeq ($(CONFIG_BK7258_AUDIO_PREPROCESS),y)
+BK7258_AP_BASE_CSRCS += bk7258_audio_preprocess.c
+endif
+ifeq ($(CONFIG_BK7258_AUD_LIFECYCLE_VALIDATION),y)
+BK7258_AP_BASE_CSRCS += bk7258_aud_validation.c
+endif
+ifeq ($(CONFIG_BK7258_GPIOE),y)
+BK7258_AP_BASE_CSRCS += bk7258_gpioe.c
+endif
+ifeq ($(CONFIG_BK7258_I2C),y)
+BK7258_AP_BASE_CSRCS += bk7258_i2c.c
+endif
+ifneq ($(filter y,$(CONFIG_BK7258_I2C) $(CONFIG_BK7258_DVP)),)
+BK7258_AP_BASE_CSRCS += bk7258_i2c_resource.c
+endif
+ifeq ($(CONFIG_BK7258_I2S),y)
+BK7258_AP_BASE_CSRCS += bk7258_i2s.c
+endif
+ifeq ($(CONFIG_BK7258_LCD_RGB),y)
+BK7258_AP_BASE_CSRCS += bk7258_lcd_rgb.c bk7258_lcd_3wire.c
+endif
+ifeq ($(CONFIG_LCD_ILI9488_RGB),y)
+BK7258_AP_BASE_CSRCS += ili9488_rgb.c
+endif
+ifeq ($(CONFIG_BK7258_LCD_SPI),y)
+BK7258_AP_BASE_CSRCS += bk7258_lcd_spi.c
+endif
+ifeq ($(CONFIG_LCD_GC9D01),y)
+BK7258_AP_BASE_CSRCS += gc9d01.c
+endif
+ifeq ($(CONFIG_CL_MFRC522_FRAME),y)
+BK7258_AP_BASE_CSRCS += mfrc522.c
+endif
+ifeq ($(CONFIG_CL_ISODEP),y)
+BK7258_AP_BASE_CSRCS += isodep.c
+endif
+ifeq ($(CONFIG_SENSORS_SC7A20),y)
+BK7258_AP_BASE_CSRCS += sc7a20.c
+endif
+ifeq ($(CONFIG_INPUT_GT9XX_STANDARD_IOCTL),y)
+BK7258_AP_BASE_CSRCS += gt9xx.c
+endif
+ifeq ($(CONFIG_BK7258_LIN),y)
+BK7258_AP_BASE_CSRCS += bk7258_lin.c
+endif
+ifeq ($(CONFIG_BK7258_ETH),y)
+BK7258_AP_BASE_CSRCS += bk7258_eth.c
+endif
+ifeq ($(CONFIG_BK7258_DMA),y)
+BK7258_AP_BASE_CSRCS += bk7258_dma.c
+endif
+ifeq ($(CONFIG_BK7258_SLCD),y)
+BK7258_AP_BASE_CSRCS += bk7258_slcd.c
+endif
+ifeq ($(CONFIG_BK7258_SBC),y)
+BK7258_AP_BASE_CSRCS += bk7258_sbc.c
+endif
+ifeq ($(CONFIG_BK7258_DMIC),y)
+BK7258_AP_BASE_CSRCS += bk7258_dmic.c
+endif
+ifeq ($(CONFIG_BK7258_USBCDC),y)
+BK7258_AP_BASE_CSRCS += bk7258_usbcdc.c
+endif
+ifeq ($(CONFIG_BK7258_USBMSC),y)
+BK7258_AP_BASE_CSRCS += bk7258_usbmsc.c
+endif
+ifeq ($(CONFIG_BK7258_USBMODE),y)
+BK7258_AP_BASE_CSRCS += bk7258_usbmode.c
+endif
+ifeq ($(CONFIG_BK7258_LCD_8080),y)
+BK7258_AP_BASE_CSRCS += bk7258_lcd_8080.c
+endif
+ifeq ($(CONFIG_BK7258_PWM),y)
+BK7258_AP_BASE_CSRCS += bk7258_pwm.c
+endif
+ifneq ($(filter y,$(CONFIG_BK7258_AUD) $(CONFIG_BK7258_DVP) $(CONFIG_BK7258_JPEG_ENCODER) $(CONFIG_BK7258_YUV_H264) $(CONFIG_BK7258_MIC)),)
+BK7258_AP_BASE_CSRCS += bk7258_media_root.c
+endif
+ifeq ($(CONFIG_BK7258_DVP),y)
+BK7258_AP_BASE_CSRCS += bk7258_dvp.c
+endif
+ifeq ($(CONFIG_BK7258_DVP_SENSOR_GC2145),y)
+LDFLAGS += -Wl,--undefined=gc2145_detect_sensor
+endif
+ifeq ($(CONFIG_BK7258_DMA2D),y)
+BK7258_AP_BASE_CSRCS += bk7258_dma2d.c
+LDFLAGS += --wrap=sys_drv_dma2d_set
+endif
+ifeq ($(CONFIG_BK7258_LVGL_FB_ACCEL),y)
+BK7258_AP_BASE_CSRCS += bk7258_lvgl_fb.c
+endif
+ifeq ($(CONFIG_BK7258_SCALE_ROTATE),y)
+BK7258_AP_BASE_CSRCS += bk7258_scale_rotate.c
+endif
+ifeq ($(CONFIG_BK7258_JPEG_DECODER),y)
+BK7258_AP_BASE_CSRCS += bk7258_jpeg_decoder.c
+endif
+ifeq ($(CONFIG_BK7258_JPEG_M2M),y)
+BK7258_AP_BASE_CSRCS += bk7258_jpeg_m2m.c
+endif
+ifeq ($(CONFIG_BK7258_JPEG_M2M_VALIDATION),y)
+BK7258_AP_BASE_CSRCS += bk7258_jpeg_m2m_validation.c
+endif
+ifeq ($(CONFIG_BK7258_JPEG_ENCODER),y)
+BK7258_AP_BASE_CSRCS += bk7258_jpeg_encoder.c
+endif
+ifeq ($(CONFIG_BK7258_YUV_H264),y)
+BK7258_AP_BASE_CSRCS += bk7258_yuv_h264.c
+endif
+ifeq ($(CONFIG_BK7258_DVP_BOARD_GLUE),y)
+LDFLAGS += --wrap=bk_i2c_init_v2 --wrap=bk_i2c_deinit_v2
+LDFLAGS += --wrap=bk_i2c_memory_read_v2 --wrap=bk_i2c_memory_write_v2
+LDFLAGS += --wrap=bk_pm_module_vote_psram_ctrl
+LDFLAGS += --wrap=dvp_camera_mclk_enable
+endif
+ifeq ($(CONFIG_BK7258_MIC),y)
+BK7258_AP_BASE_CSRCS += bk7258_mic.c
+endif
+ifeq ($(CONFIG_BK7258_MIC_LIFECYCLE_VALIDATION),y)
+BK7258_AP_BASE_CSRCS += bk7258_mic_validation.c
+endif
+ifeq ($(CONFIG_BK7258_RTC),y)
+BK7258_AP_BASE_CSRCS += bk7258_rtc.c
+endif
+ifeq ($(CONFIG_BK7258_SARADC),y)
+BK7258_AP_BASE_CSRCS += bk7258_saradc.c
+endif
+ifeq ($(CONFIG_BK7258_SARADC_VALIDATION),y)
+BK7258_AP_BASE_CSRCS += bk7258_saradc_validation.c
+endif
+ifeq ($(CONFIG_BK7258_SDIO),y)
+BK7258_AP_BASE_CSRCS += bk7258_sdio.c
+endif
+ifeq ($(CONFIG_BK7258_SDMADC),y)
+BK7258_AP_BASE_CSRCS += bk7258_sdmadc.c
+endif
+ifeq ($(CONFIG_BK7258_SPI),y)
+BK7258_AP_BASE_CSRCS += bk7258_spi.c
+endif
+ifeq ($(CONFIG_BK7258_QSPI),y)
+BK7258_AP_BASE_CSRCS += bk7258_qspi.c
+endif
+ifeq ($(CONFIG_BK7258_CAN),y)
+BK7258_AP_BASE_CSRCS += bk7258_can.c
+endif
+ifeq ($(CONFIG_BK7258_TIMER),y)
+BK7258_AP_BASE_CSRCS += bk7258_timer.c
+endif
+ifeq ($(CONFIG_BK7258_TRNG),y)
+BK7258_AP_BASE_CSRCS += bk7258_trng.c
+endif
+ifeq ($(CONFIG_BK7258_USBHOST),y)
+BK7258_AP_BASE_CSRCS += bk7258_usbhost.c
+LDFLAGS += --wrap=usbh_initialize --wrap=usbh_deinitialize \
+	--wrap=usbh_roothub_thread_send_queue
+endif
+ifeq ($(CONFIG_BK7258_USBHOST_CH34X),y)
+BK7258_AP_BASE_CSRCS += bk7258_usbserial_ch34x.c
+endif
+
+ifeq ($(CONFIG_BK7258_BT_IPC_TRACE),y)
+LDFLAGS += --wrap=bt_conn_receive --wrap=bt_l2cap_receive
+LDFLAGS += --wrap=bt_l2cap_send --wrap=bt_conn_send --wrap=bt_send
+LDFLAGS += --wrap=bt_gatt_connected --wrap=bt_gatt_disconnected
+LDFLAGS += --wrap=bt_l2cap_create_pdu
+else
+ifeq ($(CONFIG_BK7258_BT_CONN_RX_REF_COMPAT),y)
+LDFLAGS += --wrap=bt_conn_receive
+endif
+ifeq ($(CONFIG_BK7258_BT_ATT_MTU_COMPAT),y)
+LDFLAGS += --wrap=bt_l2cap_receive
+endif
+endif
+
+ifeq ($(CONFIG_BK7258_RPTUN_MBOX),y)
+BK7258_AP_BASE_CSRCS += bk7258_rptun_mbox.c
+endif
+
+ifeq ($(CONFIG_BK7258_RPTUN),y)
+BK7258_AP_BASE_CSRCS += bk7258_rptun.c
+ifeq ($(CONFIG_BK7258_OTA_RPMSG),y)
+BK7258_AP_BASE_CSRCS += bk7258_ota_rpmsg.c
+endif
+ifeq ($(CONFIG_BK7258_USBMODE_RPMSG),y)
+BK7258_AP_BASE_CSRCS += bk7258_usbmode_rpmsg.c
+endif
+ifeq ($(CONFIG_BK7258_PM_CLOCK),y)
+BK7258_AP_BASE_CSRCS += bk7258_pm_client.c
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+LDFLAGS += --wrap=bk_pm_clock_ctrl
+LDFLAGS += --wrap=bk_pm_module_vote_cpu_freq
+ifneq ($(filter y,$(CONFIG_BK7258_AUD) $(CONFIG_BK7258_MIC) $(CONFIG_BK7258_DMA2D) $(CONFIG_BK7258_SCALE_ROTATE) $(CONFIG_BK7258_JPEG_DECODER) $(CONFIG_BK7258_JPEG_ENCODER) $(CONFIG_BK7258_YUV_H264) $(CONFIG_BK7258_DVP)),)
+LDFLAGS += --wrap=bk_pm_module_vote_power_ctrl
+endif
+ifneq ($(filter y,$(CONFIG_BK7258_AUD) $(CONFIG_BK7258_MIC)),)
+LDFLAGS += --wrap=sys_drv_aud_select_clock
+endif
+
+ifeq ($(CONFIG_BK7258_DVP_H264_COMPAT),y)
+LDFLAGS += --wrap=bk_yuv_buf_start --wrap=sys_drv_int_group2_enable
+LDFLAGS += --wrap=bk_h264_encode_enable
+LDFLAGS += --wrap=sys_drv_core_intr_group2_enable
+LDFLAGS += --wrap=dvp_camera_i2c_write_uint8
+LDFLAGS += --wrap=video_register
+endif
+endif
+endif
+ifeq ($(CONFIG_BK7258_TEMPERATURE),y)
+BK7258_AP_BASE_CSRCS += bk7258_temperature_client.c
+endif
+ifeq ($(CONFIG_BK7258_TEMPERATURE_VALIDATION),y)
+BK7258_AP_BASE_CSRCS += bk7258_temperature_validation.c
+endif
+ifeq ($(CONFIG_BK7258_AP_SUPERVISOR),y)
+BK7258_AP_BASE_CSRCS += bk7258_rpmsg_health.c
+BK7258_AP_BASE_CSRCS += bk7258_ap_health.c
+endif
+ifeq ($(CONFIG_BK7258_RPMSG_TEST),y)
+BK7258_AP_BASE_CSRCS += bk7258_rpmsg_test.c
+endif
+ifeq ($(CONFIG_BK7258_RPMSGFS),y)
+BK7258_AP_BASE_CSRCS += bk7258_rpmsgfs.c
+endif
+ifeq ($(CONFIG_BK7258_RPMSGFS_TEST),y)
+BK7258_AP_BASE_CSRCS += bk7258_rpmsgfs_test.c
+endif
+ifeq ($(CONFIG_BK7258_BT_IPC_TEST),y)
+BK7258_AP_BASE_CSRCS += bk7258_bt_test.c
+endif
+endif
+
+BK7258_AP_UP_CSRCS  = $(BK7258_AP_BASE_CSRCS)
+BK7258_AP_UP_CSRCS += bk7258_cpu2_probe.c
+BK7258_AP_UP_CSRCS += $(wordlist 6,8,$(BK7258_COMMON_CSRCS))
+
+BK7258_AP_SMP_CSRCS  = $(BK7258_AP_BASE_CSRCS)
+BK7258_AP_SMP_CSRCS += bk7258_ap_smp.c
+BK7258_AP_SMP_CSRCS += bk7258_ap_smp_advanced.c
+# N8-B2 activates the same common SDK IRQ bridge for AP mailbox source 63.
+ifeq ($(CONFIG_BK7258_AP_IPI),y)
+BK7258_AP_SMP_CSRCS += bk7258_sdk_irq.c
+BK7258_AP_SMP_CSRCS += bk7258_ap_ipi.c
+endif
+BK7258_AP_SMP_CSRCS += $(wordlist 6,8,$(BK7258_COMMON_CSRCS))
+
+ifeq ($(CONFIG_ARM_SYSTICK),y)
+BK7258_AP_UP_CSRCS += arm_systick.c
+BK7258_AP_SMP_CSRCS += arm_systick.c
+endif
+
+ifeq ($(CONFIG_BK7258_AP_CORE),y)
+ifeq ($(CONFIG_BK7258_AP_SMP_BOOTSTRAP),y)
+CHIP_CSRCS = $(BK7258_AP_SMP_CSRCS)
+else
+CHIP_CSRCS = $(BK7258_AP_UP_CSRCS)
+endif
+else
+CHIP_CSRCS = $(BK7258_CP_CSRCS)
+endif
+
+# The exported sdkconfig.h is part of the immutable static-library ABI and stays
+# authoritative.  OpenVela ownership is expressed by project Kconfig and by
+# which SDK lifecycle entry points the wrappers call, never by redefining SDK
+# configuration macros after the libraries were built.
+
+# Wrap the common dispatcher to enforce non-nested IRQ dispatch and retain
+# the selected context across the STAR no-switch return path.  Keep the
+# board-verified AP-UP/AP-parked fallbacks unchanged; N8-C1 scheduler-online
+# provides an SMP-safe per-core wrapper from bk7258_ap_vectors.c.
+
+ifneq ($(CONFIG_BK7258_AP_CORE),y)
+# Retained NuttX kernel compatibility; not SDK ABI wrappers.
+LDFLAGS += --wrap=arm_doirq --wrap=nxsched_resume_scheduler
+else ifeq ($(CONFIG_BK7258_AP_SMP_SCHED_ONLINE),y)
+# Retained NuttX kernel compatibility; not SDK ABI wrappers.
+LDFLAGS += --wrap=arm_doirq --wrap=nxsched_resume_scheduler
+LDFLAGS += --wrap=nx_bringup
+endif
+
+# Keep the explicit link entry point aligned with the vector-table ABI;
+# --build-id=none keeps the image deterministic and avoids build-id bytes
+# shifting later sections.
+
+LDFLAGS += --build-id=none --entry=_vectors

@@ -1,0 +1,270 @@
+/****************************************************************************
+ * chips/bk7258/cp/bk7258_dvfs_procfs.c
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * /proc/dvfs interface for the BK7258 DVFS policy.  Exposes the current SDK
+ * shared operating point together with live CPU0/AP/bus frequencies and
+ * accepts "cur_opp <opp>" as the diagnostic APP client's vote, giving
+ * userspace a way to verify the DVFS path without confusing an SDK OPP label
+ * with physical CPU0 MHz or bypassing other active module votes.
+ *
+ * Modelled on arch/arm/src/lc823450/lc823450_procfs_dvfs.c (lc823450 is the
+ * NuttX OSS precedent for chip-local DVFS without the PM state machine).
+ *
+ * Contract:
+ *   read  -> cur_opp/cpu0_hz/ap_hz/bus_hz lines
+ *   write -> "cur_opp <opp>\n" updates the APP vote to SDK OPP 0..6
+ *            (the historical "cur_freq" spelling remains accepted)
+ *            while AP is stopped; an active AP is rejected with -EBUSY
+ *            until the AP timebase can be refreshed across cores
+ *
+ * Requires CONFIG_FS_PROCFS (independently mounted at /proc by
+ * bk7258_bringup.c(board_app_initialize).  bk7258_dvfs_procfs_register()
+ * must be called *before* the procfs mount (per fs_procfs.c NOTE).
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/param.h>
+#include <errno.h>
+
+#include <nuttx/kmalloc.h>
+#include <nuttx/fs/fs.h>
+#include <nuttx/fs/procfs.h>
+
+#ifdef CONFIG_BK7258_PM_POLICY
+#  include <arch/chip/bk7258_pm.h>
+#endif
+
+#ifdef CONFIG_BK7258_AP_CONTROL
+#  include <arch/chip/bk7258_amp.h>
+#endif
+
+#include "arm_internal.h"
+#include "bk7258_clockdiag.h"
+#include "bk7258_dvfs.h"
+
+#define BK7258_DVFS_LINELEN  128
+
+/****************************************************************************
+ * Private Types
+ ****************************************************************************/
+
+struct bk7258_dvfs_file_s
+{
+  struct procfs_file_s base;     /* Base open file structure */
+  unsigned int         linesize; /* Valid chars in line[] */
+  char                 line[BK7258_DVFS_LINELEN];
+};
+
+/****************************************************************************
+ * Private Function Prototypes
+ ****************************************************************************/
+
+static int     bk7258_dvfs_open(struct file *filep, const char *relpath,
+                                int oflags, mode_t mode);
+static int     bk7258_dvfs_close(struct file *filep);
+static ssize_t bk7258_dvfs_read(struct file *filep, char *buffer,
+                                size_t buflen);
+static ssize_t bk7258_dvfs_write(struct file *filep, const char *buffer,
+                                 size_t buflen);
+static int     bk7258_dvfs_stat(const char *relpath, struct stat *buf);
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+
+static const struct procfs_operations g_bk7258_dvfs_ops =
+{
+  bk7258_dvfs_open,
+  bk7258_dvfs_close,
+  bk7258_dvfs_read,
+  bk7258_dvfs_write,
+  NULL,            /* poll */
+  NULL,            /* opendir */
+  NULL,            /* closedir */
+  NULL,            /* readdir */
+  NULL,            /* rewinddir */
+  bk7258_dvfs_stat
+};
+
+static const struct procfs_entry_s g_bk7258_dvfs_procfs =
+{
+  "dvfs",
+  &g_bk7258_dvfs_ops
+};
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+static int bk7258_dvfs_open(struct file *filep, const char *relpath,
+                           int oflags, mode_t mode)
+{
+  struct bk7258_dvfs_file_s *priv;
+
+  priv = kmm_zalloc(sizeof(*priv));
+  if (priv == NULL)
+    {
+      return -ENOMEM;
+    }
+
+  filep->f_priv = priv;
+  return OK;
+}
+
+static int bk7258_dvfs_close(struct file *filep)
+{
+  struct bk7258_dvfs_file_s *priv = filep->f_priv;
+
+  if (priv != NULL)
+    {
+      kmm_free(priv);
+    }
+
+  filep->f_priv = NULL;
+  return OK;
+}
+
+static ssize_t bk7258_dvfs_read(struct file *filep, char *buffer,
+                                size_t buflen)
+{
+  struct bk7258_dvfs_file_s *priv = filep->f_priv;
+  size_t totalsize;
+  size_t copysize;
+  size_t remaining;
+  off_t  offset = filep->f_pos;
+  int tier;
+  uint32_t cpu0_hz;
+  uint32_t ap_hz;
+  uint32_t bus_hz;
+
+  if (priv == NULL)
+    {
+      return -EIO;
+    }
+
+  remaining = buflen;
+  totalsize = 0;
+
+#ifdef CONFIG_BK7258_PM_POLICY
+  {
+    struct bk7258_pm_frequency_status_s status;
+    int ret = bk7258_pm_frequency_get_status(&status);
+
+    if (ret < 0)
+      {
+        return ret;
+      }
+
+    tier = (int)status.current;
+  }
+#else
+  tier = bk7258_dvfs_get_opp();
+#endif
+
+  cpu0_hz = bk7258_clockdiag_current_cpu_hz();
+  ap_hz = bk7258_dvfs_ap_hz_for_opp(tier);
+  bus_hz = bk7258_clockdiag_current_bus_hz();
+
+  priv->linesize = snprintf(priv->line, BK7258_DVFS_LINELEN,
+                            "cur_opp %d\n"
+                            "cpu0_hz %lu\n"
+                            "ap_hz %lu\n"
+                            "bus_hz %lu\n",
+                            tier, (unsigned long)cpu0_hz,
+                            (unsigned long)ap_hz,
+                            (unsigned long)bus_hz);
+  copysize = procfs_memcpy(priv->line, priv->linesize, buffer, remaining,
+                           &offset);
+  totalsize += copysize;
+
+  if (totalsize > 0)
+    {
+      filep->f_pos += totalsize;
+    }
+
+  return totalsize;
+}
+
+static ssize_t bk7258_dvfs_write(struct file *filep, const char *buffer,
+                                 size_t buflen)
+{
+  char line[BK7258_DVFS_LINELEN];
+  size_t length;
+  int tier;
+  int ret;
+
+  length = MIN(buflen, sizeof(line) - 1);
+  memcpy(line, buffer, length);
+  line[length] = '\0';
+
+  if (sscanf(line, "cur_opp %d", &tier) != 1 &&
+      sscanf(line, "cur_freq %d", &tier) != 1)
+    {
+      return -EINVAL;
+    }
+
+#ifdef CONFIG_BK7258_AP_CONTROL
+  /* A local CP write refreshes only the CP DWT conversion.  Hold the AP
+   * lifecycle gate across both the state check and the complete transition,
+   * so AP cannot start between them.  An AP-initiated PM vote refreshes the
+   * AP timebase through its normal request/reply path and does not use this
+   * diagnostic gate.
+   */
+
+  ret = bk7258_ap_cp_clock_transition_begin();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_PM_POLICY
+  ret = bk7258_pm_frequency_vote(BK7258_PM_FREQ_CLIENT_APP,
+                                 (bk7258_pm_opp_t)tier);
+#else
+  ret = bk7258_dvfs_set_opp(tier);
+#endif
+
+#ifdef CONFIG_BK7258_AP_CONTROL
+  bk7258_ap_cp_clock_transition_end();
+#endif
+
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+  return (ssize_t)buflen;
+}
+
+static int bk7258_dvfs_stat(const char *relpath, struct stat *buf)
+{
+  buf->st_mode    =
+    S_IFREG |
+    S_IROTH | S_IWOTH |
+    S_IRGRP | S_IWGRP |
+    S_IRUSR | S_IWUSR;
+  buf->st_size    = 0;
+  buf->st_blksize = 0;
+  buf->st_blocks  = 0;
+  return OK;
+}
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
+
+int bk7258_dvfs_procfs_register(void)
+{
+  return procfs_register(&g_bk7258_dvfs_procfs);
+}

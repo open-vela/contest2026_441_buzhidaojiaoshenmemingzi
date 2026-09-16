@@ -1,0 +1,75 @@
+v[?25l[1D[Kv[?25hi[?25l[2D[Kvi[?25hs[?25l[3D[Kvis[?25hi[?25l[4D[Kvisi[?25ho[?25l[5D[Kvisio[?25hn[?25l[6D[Kvision[?25h_[?25l[7D[Kvision_[?25hb[?25l[8D[Kvision_b[?25ha[?25l[9D[Kvision_ba[?25hd[?25l[10D[Kvision_bad[?25hg[?25l[11D[Kvision_badg[?25he[?25l[12D[Kvision_badge[?25h [?25l[13D[Kvision_badge [?25hr[?25l[14D[Kvision_badge r[?25hu[?25l[15D[Kvision_badge ru[?25hn[?25l[16D[Kvision_badge run[?25h [?25l[17D[Kvision_badge run [?25h�[?25l[18D[Kvision_badge run �[?25h�[?25l[19D[Kvision_badge run �[?25h�[?25l[20D[Kvision_badge run 请[?25h�[?25l[21D[Kvision_badge run 请�[?25h�[?25l[22D[Kvision_badge run 请�[?25h�[?25l[23D[Kvision_badge run 请简[?25h�[?25l[24D[Kvision_badge run 请简�[?25h�[?25l[25D[Kvision_badge run 请简�[?25h�[?25l[26D[Kvision_badge run 请简短[?25h�[?25l[27D[Kvision_badge run 请简短�[?25h�[?25l[28D[Kvision_badge run 请简短�[?25h�[?25l[29D[Kvision_badge run 请简短描[?25h�[?25l[30D[Kvision_badge run 请简短描�[?25h�[?25l[31D[Kvision_badge run 请简短描�[?25h�[?25l[32D[Kvision_badge run 请简短描述[?25h�[?25l[33D[Kvision_badge run 请简短描述�[?25h�[?25l[34D[Kvision_badge run 请简短描述�[?25h�[?25l[35D[Kvision_badge run 请简短描述画[?25h�[?25l[36D[Kvision_badge run 请简短描述画�[?25h�[?25l[37D[Kvision_badge run 请简短描述画�[?25h�[?25l[38D[Kvision_badge run 请简短描述画面[?25h�[?25l[39D[Kvision_badge run 请简短描述画面�[?25h�[?25l[40D[Kvision_badge run 请简短描述画面�[?25h�[?25l[41D[Kvision_badge run 请简短描述画面中[?25h�[?25l[42D[Kvision_badge run 请简短描述画面中�[?25h�[?25l[43D[Kvision_badge run 请简短描述画面中�[?25h�[?25l[44D[Kvision_badge run 请简短描述画面中能[?25h�[?25l[45D[Kvision_badge run 请简短描述画面中能�[?25h�[?25l[46D[Kvision_badge run 请简短描述画面中能�[?25h�[?25l[47D[Kvision_badge run 请简短描述画面中能确[?25h�[?25l[48D[Kvision_badge run 请简短描述画面中能确�[?25h�[?25l[49D[Kvision_badge run 请简短描述画面中能确�[?25h�[?25l[50D[Kvision_badge run 请简短描述画面中能确认[?25h�[?25l[51D[Kvision_badge run 请简短描述画面中能确认�[?25h�[?25l[52D[Kvision_badge run 请简短描述画面中能确认�[?25h�[?25l[53D[Kvision_badge run 请简短描述画面中能确认的[?25h�[?25l[54D[Kvision_badge run 请简短描述画面中能确认的�[?25h�[?25l[55D[Kvision_badge run 请简短描述画面中能确认的�[?25h�[?25l[56D[Kvision_badge run 请简短描述画面中能确认的内[?25h�[?25l[57D[Kvision_badge run 请简短描述画面中能确认的内�[?25h�[?25l[58D[Kvision_badge run 请简短描述画面中能确认的内�[?25h�[?25l[59D[Kvision_badge run 请简短描述画面中能确认的内容[?25h
+status_screen: state camera drawn
+vision_badge: taking a picture
+vision_badge: opening /dev/video0
+bk7258_camera_imgsensor: init: entry
+bk7258_camera_imgsensor: init: power_on done
+bk7258_camera_imgsensor: init: reset done
+bk7258_camera_imgsensor: init: dvp_pinmux done
+bk7258_camera_imgsensor: init: mclk_enable done, reg0x0a=0x002785cc reg0x0d=0x00000200
+bk7258_camera_imgsensor: init: i2c1_init done
+bk7258_camera_imgsensor: chip ID = 0x2145 (expected 0x2145)
+bk7258_camera_imgsensor: init: writing 585 init registers
+bk7258_camera_imgsensor: init: init register table write OK, writing the 640x480 mode
+bk7258_camera_imgsensor: init: complete at 640x480 30fps, sensor now continuously outputting DVP signal
+bk7258_camera_imgdata: init: entry
+bk7258_yuv_buf: init: power/clock enabled, reg0x10=0x20000000 reg0x0d=0x00000209
+bk7258_yuv_buf: init: global_ctrl=0x00000003 (soft_reset released, clk_gate_bypass set, per yuv_buf_ll_init())
+bk7258_yuv_buf: init: dev_id=0x00797576->0x00797576 dev_version=0x00010002->0x00010002 dev_status=0x00000000->0x00000000 (in-reset -> released)
+bk7258_yuv_buf: init: complete, irq=74 attached and enabled
+bk7258_dma: init: prio_mode=0x00000001 secure_attr=0x000000ff priv_attr=0x000000ff irq=27
+bk7258_jpeg_enc: init: power/clock enabled, reg0x0c=0xdf78809c reg0x10=0x20000000
+bk7258_jpeg_enc: init: global_ctrl=0x00000001 (soft_reset released, per jpeg_ll_init())
+bk7258_jpeg_enc: init: dev_id=0x6a706765->0x6a706765 dev_version=0x00010002->0x00010002 dev_status=0x00000000->0x00000000 (in-reset -> released)
+bk7258_jpeg_enc: init: complete, irq=41 attached and enabled
+bk7258_camera_imgdata: init: complete
+vision_badge: camera opened, configuring capture
+bk7258_camera_imgdata: set_buf: addr=0x601901a0 frame_bytes=262144 (buffer size given=262144)
+bk7258_camera_imgdata: start_capture: entry, frame_buf=0x601901a0 frame_buf_size=262144
+bk7258_yuv_buf: configure(640x480): x_pixel=80 y_pixel=60 frame_blk=2400
+bk7258_yuv_buf: configure: global_ctrl=0x00000003 ctrl=0x00080e00 pixel=0x09603c50 resize_pixel=0x000078a0 int_masks=0x0000001c int_en=0x000001d3 em_base_addr=0x00000000 emr_base_addr=0x00000000
+bk7258_yuv_buf: [start_capture: started] global_ctrl=0x00000003 ctrl=0x00080e01 int_en=0x000001d3 int_status=0x00000000 em_base_addr=0x602101c0 dev_id=0x00797576 dev_status=0x00000000
+bk7258_yuv_buf: [start_capture: started] isr=0 frame=0 vsync=0 err=0 last_status=0x00000000 err_status=0x00000000
+bk7258_jpeg_enc: [start_capture: started] global_ctrl=0x00000001 cfg=0x3c005000 int_en=0x00000000 int_status=0x00000000 byte_count_pfrm=0 fifo_status=0x04000000 y_count=0x00000000 dev_id=0x6a706765 dev_status=0x00000000
+bk7258_jpeg_enc: [start_capture: started] target_byte_h=0 target_byte_l=0 out_buf=0x00000000 fifo_addr=0x48000014
+bk7258_jpeg_enc: [start_capture: started] isr=0 frame=0 sof=0 err=0 last_status=0x00000000 last_bytes=0
+bk7258_camera_imgdata: start_capture: complete at 640x480 (JPEG, 0 buffer bytes), watchdog=500ms
+bk7258_camera_imgsensor: start_capture: entry
+bk7258_camera_imgsensor: start_capture: OK at 640x480 30fps (sensor streaming continuously since init)
+vision_badge: camera started, waiting up to 5000 ms for a frame
+bk7258_camera_imgdata: sw_jpeg first frame len=26434 dst[0..3]=ff d8 ff e0 tail=ff d9
+bk7258_camera_imgdata: set_buf: addr=0x601d01a0 frame_bytes=262144 (buffer size given=262144)
+vision_badge: camera frame received
+bk7258_camera_imgdata: stop_capture: ring_over=0 resync=0 no_soi=0 sampler_skipped=0 hw_busy=0 (target 5 fps)
+bk7258_camera_imgdata: stop_capture: frames=1 timeouts=0 elapsed=322ms measured=3.10 fps
+bk7258_camera_imgdata: stop_capture: sw_jpeg frames=1 dropped_oldest=0 sampler_skipped=0 busy=7 nobuf=0 due_in=-72 set_buf_live=1 armed=1 encoding=0 (target 5 fps)
+bk7258_camera_imgdata: stop_capture: jpeg chunks=0 short=0 resets=0 vsyncs=0 hdr_fail=0 bit_fixed=0 bit_fail=0 eoi_delta=0 dma_remain=0 finish_pending=0 pending_mask=0x00000000 pending_delta=0
+bk7258_camera_imgdata: stop_capture: validator runs=0 total_ticks=0 avg=0 ms
+bk7258_camera_imgdata: stop_capture: bytes[0-4..+4] = 00 00 00 00 | 00 00 00 00
+bk7258_jpeg_enc: [stop_capture] global_ctrl=0x00000001 cfg=0x3c005000 int_en=0x00000000 int_status=0x00000000 byte_count_pfrm=0 fifo_status=0x04000000 y_count=0x00000000 dev_id=0x6a706765 dev_status=0x00000000
+bk7258_jpeg_enc: [stop_capture] target_byte_h=0 target_byte_l=0 out_buf=0x00000000 fifo_addr=0x48000014
+bk7258_jpeg_enc: [stop_capture] isr=0 frame=0 sof=0 err=0 last_status=0x00000000 last_bytes=0
+bk7258_camera_imgsensor: uninit: sensor powered off, MCLK gate closed
+bk7258_camera_imgdata: uninit: frames=1 timeouts=0 set_buf=2 rejected=0
+bk7258_yuv_buf: [uninit] global_ctrl=0x00000003 ctrl=0x00080e00 int_en=0x00000000 int_status=0x00000000 em_base_addr=0x602101c0 dev_id=0x00797576 dev_status=0x00000000
+bk7258_yuv_buf: [uninit] isr=16 frame=8 vsync=8 err=0 last_status=0x00000001 err_status=0x00000000
+bk7258_camera_imgdata: uninit: frame[0..31] = 55 56 55 dd cd 55 57 d5 54 59 75 b7 95 57 d6 45 55 e5 57 7b 17 76 5f 55 1d 51 75 d4 51 dc 51 5d
+vision_badge: picture ready, 640x480, 26434 bytes
+status_screen: state AI... drawn
+vision_badge: sending the picture to MiMo
+vision_badge: system time is not usable; starting NTP
+vision_badge: NTP unavailable after 12 seconds; trying authenticated HTTPS time
+vision_badge: certificate chain and hostname verified; certificate time is the only temporary exception
+vision_badge: HTTPS time bootstrap UTC 2026-08-30 13:12:14
+vision_badge: UTC 2026-08-30 13:12:14
+vision_badge: sending 26434-byte JPEG to MiMo (35679-byte request)
+vision_badge: MiMo HTTP status=200, response=979 bytes
+status_screen: state done drawn
+vision_badge: answer received
+vision_badge: 这张图片展示了一个室内场景的局部，主要包含以下内容：
+
+1.  **天花板**：画面上方是白色的方形吊顶板，由网格状的框架支撑。
+2.  **墙壁**：左侧有一面深绿色的墙壁，表面看起来有些斑驳或纹理。
+3.  **人物**：右下角可以看到一个人的头部局部，主要是深色的头发和部分侧脸，似乎戴着眼镜。
+4.  **光线**：整体光线偏暗且带有明显的绿色调，可能是由于灯光颜色或拍摄设备的白平衡设置造成的。
+[2Knsh> [?25l[K[?25h

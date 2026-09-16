@@ -1,0 +1,11 @@
+a[?25l[1D[Ka[?25hu[?25l[2D[Kau[?25hd[?25l[3D[Kaud[?25hi[?25l[4D[Kaudi[?25ho[?25l[5D[Kaudio[?25h_[?25l[6D[Kaudio_[?25ht[?25l[7D[Kaudio_t[?25he[?25l[8D[Kaudio_te[?25hs[?25l[9D[Kaudio_tes[?25ht[?25l[10D[Kaudio_test[?25h [?25l[11D[Kaudio_test [?25hr[?25l[12D[Kaudio_test r[?25he[?25l[13D[Kaudio_test re[?25hc[?25l[14D[Kaudio_test rec[?25hp[?25l[15D[Kaudio_test recp[?25hl[?25l[16D[Kaudio_test recpl[?25ha[?25l[17D[Kaudio_test recpla[?25hy[?25l[18D[Kaudio_test recplay[?25h [?25l[19D[Kaudio_test recplay [?25h-[?25l[20D[Kaudio_test recplay -[?25ht[?25l[21D[Kaudio_test recplay -t[?25h [?25l[22D[Kaudio_test recplay -t [?25h5[?25l[23D[Kaudio_test recplay -t 5[?25h [?25l[24D[Kaudio_test recplay -t 5 [?25h-[?25l[25D[Kaudio_test recplay -t 5 -[?25hr[?25l[26D[Kaudio_test recplay -t 5 -r[?25h [?25l[27D[Kaudio_test recplay -t 5 -r [?25h1[?25l[28D[Kaudio_test recplay -t 5 -r 1[?25h6[?25l[29D[Kaudio_test recplay -t 5 -r 16[?25h0[?25l[30D[Kaudio_test recplay -t 5 -r 160[?25h0[?25l[31D[Kaudio_test recplay -t 5 -r 1600[?25h0[?25l[32D[Kaudio_test recplay -t 5 -r 16000[?25h
+audio_test: clip wants 172 KiB, heap has 6130 KiB free
+audio_test: clip of 172 KiB taken from PSRAM
+audio_test: recording 5 s -- speak now (the first 512 ms are dropped while the ADC settles)
+audio_test: captured 172 KiB = 5.504 s
+audio_test: 86 buffer(s) measured, 8 discarded while settling, underruns=0 ioerrors=0
+  ch0 (MIC1 voice    ): n=88064   dc=0.6      rms=8.4      peak=34
+audio_test: scaled clip 64x for playback (peak 34 -> 2176); the microphone noise floor is amplified too
+audio_test: playing it back
+audio_test: played 86 buffer(s), underruns=0
+[2Knsh> [?25l[K[?25h

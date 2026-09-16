@@ -1,0 +1,429 @@
+/****************************************************************************
+ * boards/bk7258/common/src/bk7258_ap_bringup.c
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Board-owned registration of AP peripheral lower halves.  Self-registering
+ * drivers
+ * (AUD, I2C, MIC, RTC, SARADC, SDMADC, TIMER) publish their character
+ * device directly and are fatal on failure.  I2S, SDIO and SPI objects are
+ * bound here to their NuttX upper halves; those bindings are best-effort
+ * because an absent daughter board must not park the AP.  GPIOE remains an
+ * object-only lower half: a board consumer must explicitly choose and claim
+ * each pin before publishing a GPIO character device.
+ * The selected physical board invokes these ordered phases and registers its
+ * attached display, touch and camera devices between them.
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+
+#include <debug.h>
+#include <errno.h>
+#include <syslog.h>
+
+#include <arch/board/board.h>
+#include <arch/chip/bk7258_ap_platform.h>
+#include <arch/chip/bk7258_aud.h>
+#include <arch/chip/bk7258_mic.h>
+#include <arch/chip/bk7258_sdio.h>
+
+#ifdef CONFIG_BK7258_CAN
+#  include <nuttx/can/can.h>
+#  include <arch/chip/bk7258_can.h>
+#endif
+#ifdef CONFIG_BK7258_I2C
+#  include <arch/chip/bk7258_i2c.h>
+#endif
+#ifdef CONFIG_BK7258_I2S
+#  include <nuttx/audio/i2s.h>
+#  include <arch/chip/bk7258_i2s.h>
+#endif
+#ifdef CONFIG_BK7258_JPEG_M2M
+#  include <arch/chip/bk7258_jpeg_m2m.h>
+#endif
+#ifdef CONFIG_BK7258_PWM
+#  include <arch/chip/bk7258_pwm.h>
+#endif
+#ifdef CONFIG_BK7258_DMA
+#  include <arch/chip/bk7258_dma.h>
+#endif
+#ifdef CONFIG_BK7258_RTC
+#  include <arch/chip/bk7258_rtc.h>
+#endif
+#ifdef CONFIG_BK7258_SARADC
+#  include <arch/chip/bk7258_saradc.h>
+#endif
+#ifdef CONFIG_BK7258_SDIO
+#  include <nuttx/clock.h>
+#  include <nuttx/mmcsd.h>
+#  include <nuttx/sdio.h>
+#endif
+#ifdef CONFIG_BK7258_SDMADC
+#  include <arch/chip/bk7258_sdmadc.h>
+#endif
+#ifdef CONFIG_BK7258_SPI
+#  include <nuttx/spi/spi.h>
+#  include <nuttx/spi/spi_transfer.h>
+#  include <arch/chip/bk7258_spi.h>
+#endif
+#ifdef CONFIG_BK7258_TIMER
+#  include <arch/chip/bk7258_timer.h>
+#endif
+#ifdef CONFIG_BK7258_USBHOST
+#  include <nuttx/usb/usbhost.h>
+#  include <arch/chip/bk7258_usbhost.h>
+#endif
+#ifdef CONFIG_BK7258_USBHOST_CH34X
+#  include <arch/chip/bk7258_usbserial_ch34x.h>
+#endif
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#ifndef CONFIG_BK7258_SDIO_SLOTNO
+#  define CONFIG_BK7258_SDIO_SLOTNO     0
+#endif
+
+
+#ifndef CONFIG_BK7258_I2S_MINOR
+#  define CONFIG_BK7258_I2S_MINOR       0
+#endif
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+#ifdef CONFIG_BK7258_CAN
+static void bk7258_can_bind(void)
+{
+  FAR struct can_dev_s *can = NULL;
+  int ret;
+
+  ret = bk7258_can_initialize(&can);
+  if (ret < 0)
+    {
+      canerr("ERROR: bk7258_can_initialize failed: %d\n", ret);
+      return;
+    }
+
+  ret = can_register("/dev/can0", can);
+  if (ret < 0)
+    {
+      canerr("ERROR: can_register failed: %d\n", ret);
+      (void)bk7258_can_uninitialize(can);
+      return;
+    }
+}
+#endif
+
+#ifdef CONFIG_BK7258_I2S
+/****************************************************************************
+ * Name: bk7258_i2s_bind
+ *
+ * Description:
+ *   Bind the I2S lower half to the i2schar upper half so the bus is
+ *   reachable as /dev/i2scharN.  Without AUDIO_I2SCHAR the object has no
+ *   in-tree consumer and is left for a board-specific audio codec.
+ *
+ ****************************************************************************/
+
+static void bk7258_i2s_bind(
+  FAR const struct bk7258_i2s_board_s *board)
+{
+  FAR struct i2s_dev_s *i2s;
+
+  i2s = bk7258_i2s_initialize(board);
+  if (i2s == NULL)
+    {
+      auderr("ERROR: bk7258_i2s_initialize failed\n");
+      return;
+    }
+
+#ifdef CONFIG_AUDIO_I2SCHAR
+  int ret = i2schar_register(i2s, CONFIG_BK7258_I2S_MINOR);
+  if (ret < 0)
+    {
+      auderr("ERROR: i2schar_register failed: %d\n", ret);
+    }
+#endif
+}
+#endif
+
+#ifdef CONFIG_BK7258_SDIO
+/****************************************************************************
+ * Name: bk7258_board_ap_sdio_initialize
+ *
+ * Description:
+ *   Attach the SDIO lower half to the MMC/SD upper half.  A missing or
+ *   unpowered card is normal at boot: mmcsd_slotinitialize only probes the
+ *   card, and the slot stays usable once media is inserted.
+ *
+ ****************************************************************************/
+
+int bk7258_board_ap_sdio_initialize(
+  FAR const struct bk7258_sdio_board_s *board)
+{
+  FAR struct sdio_dev_s *sdio = NULL;
+  clock_t started = clock_systime_ticks();
+  int ret;
+
+  syslog(LOG_INFO, "BSDIO stage=lower-enter\n");
+  ret = bk7258_sdio_initialize(&sdio, board);
+  if (ret < 0)
+    {
+      mcerr("ERROR: BSDIO stage=lower-fail ret=%d elapsed=%lu ms\n",
+            ret, (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
+      return ret;
+    }
+
+  syslog(LOG_INFO, "BSDIO stage=lower-pass elapsed=%lu ms\n",
+         (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
+
+#ifdef CONFIG_MMCSD_SDIO
+  /* The lower half follows the selected slot binding, probes media that is
+   * already present and delivers configured insert/eject edges from HPWORK.
+   */
+
+  syslog(LOG_INFO, "BSDIO stage=mmcsd-enter slot=%d\n",
+         CONFIG_BK7258_SDIO_SLOTNO);
+  ret = mmcsd_slotinitialize(CONFIG_BK7258_SDIO_SLOTNO, sdio);
+  if (ret < 0)
+    {
+      mcerr("ERROR: BSDIO stage=mmcsd-fail ret=%d elapsed=%lu ms\n",
+            ret, (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
+      return ret;
+    }
+#endif
+
+  syslog(LOG_INFO, "BSDIO BOOT PASS slot=%d elapsed=%lu ms\n",
+         CONFIG_BK7258_SDIO_SLOTNO,
+         (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
+  return OK;
+}
+#endif
+
+#ifdef CONFIG_BK7258_SPI
+/****************************************************************************
+ * Name: bk7258_spi_bind
+ *
+ * Description:
+ *   Publish the SPI master as /dev/spiN so transfers can be driven from
+ *   user space.  The selected physical board supplies the standard NuttX
+ *   bus-specific select/status hooks and initializes its chip-select GPIOs.
+ *
+ ****************************************************************************/
+
+static void bk7258_spi_bind(void)
+{
+  FAR struct spi_dev_s *spi = NULL;
+  int ret;
+
+  ret = bk7258_spi_initialize(&spi);
+  if (ret < 0)
+    {
+      spierr("ERROR: bk7258_spi_initialize failed: %d\n", ret);
+      return;
+    }
+
+#ifdef CONFIG_SPI_DRIVER
+  ret = spi_register(spi, CONFIG_BK7258_SPI_BUS);
+  if (ret < 0)
+    {
+      spierr("ERROR: spi_register failed: %d\n", ret);
+    }
+#endif
+}
+#endif
+
+#ifdef CONFIG_BK7258_USBHOST
+static void bk7258_usbhost_bind(void)
+{
+  FAR struct usbhost_connection_s *conn;
+  int ret;
+
+  /* Register only NuttX class drivers, then start NuttX's common waiter.
+   * The board lower half redirects the SDK open/close path to its HCD-only
+   * wrappers, so no CherryUSB hub or class thread is created here.
+   */
+
+  usbhost_drivers_initialize();
+#ifdef CONFIG_BK7258_USBHOST_CH34X
+  ret = bk7258_usbserial_ch34x_initialize();
+  if (ret < 0)
+    {
+      uerr("ERROR: CH34x USB host class registration failed: %d\n", ret);
+      return;
+    }
+#endif
+  conn = bk7258_usbhost_initialize();
+  if (conn == NULL)
+    {
+      uerr("ERROR: BK7258 USB host initialization failed\n");
+      return;
+    }
+
+  ret = usbhost_waiter_initialize(conn);
+  if (ret < 0)
+    {
+      uerr("ERROR: USB host waiter failed: %d\n", ret);
+      (void)bk7258_usbhost_uninitialize();
+    }
+}
+#endif
+
+/****************************************************************************
+ * Public Functions
+ ****************************************************************************/
+
+int bk7258_board_ap_controllers_initialize(
+  FAR const struct bk7258_mic_config_s *mic,
+  FAR const struct bk7258_aud_board_s *audio)
+{
+  int ret = OK;
+
+  (void)mic;
+  (void)audio;
+
+  /* AP-local SDK, PSRAM and pre-RPTUN clients are a hard prerequisite.
+   * Do not hide ordering bugs by initializing them again from this leaf.
+   */
+
+  ret = bk7258_ap_platform_result();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+#ifdef CONFIG_BK7258_JPEG_M2M
+  ret = bk7258_jpeg_m2m_register(CONFIG_BK7258_JPEG_M2M_DEVPATH);
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_AUD
+  ret = bk7258_aud_initialize(audio);
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_I2C
+  ret = bk7258_i2c_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_MIC
+  ret = bk7258_mic_initialize(mic);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+#endif
+
+#ifdef CONFIG_BK7258_PWM
+  ret = bk7258_pwm_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_DMA
+  ret = bk7258_dma_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+  return OK;
+}
+
+int bk7258_board_ap_buses_initialize(
+  FAR const struct bk7258_i2s_board_s *i2s,
+  FAR const struct bk7258_sdio_board_s *sdio)
+{
+#if defined(CONFIG_BK7258_RTC) || defined(CONFIG_BK7258_SARADC) || \
+    defined(CONFIG_BK7258_SDMADC) || defined(CONFIG_BK7258_TIMER)
+  int ret;
+#endif
+
+  (void)i2s;
+  (void)sdio;
+
+#ifdef CONFIG_BK7258_RTC
+  ret = bk7258_rtc_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_SARADC
+  ret = bk7258_saradc_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_SDMADC
+  ret = bk7258_sdmadc_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+#ifdef CONFIG_BK7258_TIMER
+  ret = bk7258_timer_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+
+#endif
+
+  /* Object-returning lower halves.  These are best-effort: a failure means
+   * the peripheral is unavailable, not that the AP is unhealthy, so we log
+   * and continue instead of parking the core.
+   */
+
+#ifdef CONFIG_BK7258_CAN
+  bk7258_can_bind();
+#endif
+
+#ifdef CONFIG_BK7258_I2S
+  bk7258_i2s_bind(i2s);
+#endif
+
+#ifdef CONFIG_BK7258_SDIO
+  if (sdio != NULL)
+    {
+      (void)bk7258_board_ap_sdio_initialize(sdio);
+    }
+#endif
+
+#ifdef CONFIG_BK7258_SPI
+  bk7258_spi_bind();
+#endif
+
+  return OK;
+}
+
+int bk7258_board_ap_finalize_initialize(void)
+{
+#ifdef CONFIG_BK7258_USBHOST
+  bk7258_usbhost_bind();
+#endif
+
+  return OK;
+}
