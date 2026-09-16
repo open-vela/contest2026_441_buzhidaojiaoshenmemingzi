@@ -21,9 +21,14 @@
 本队修改：
 
 - 新增 `team441_cp`、`team441_ap` 配置，去掉参考项目的 Agent、云端、产品
-  UI、模型、配网和 OTA 默认项；
+  UI、模型、配网和 OTA 默认项；参考仓的 app/openvela_ap/drivercheck/xts
+  配置未纳入本队维护范围；
 - `openvela.conf` 改为选择本队 CP/AP 配置；
 - `tools/bk7258/_lib/build.py` 的来源哈希范围改为本队实际存在的应用目录；
+- `tools/bk7258/_lib/layers.py` 对文本例外文件按 LF 规范化后计算 SHA256，避免
+  Windows CRLF 检出造成误报，并新增主机回归测试；
+- 删除参考项目专用的 AIDK 自动化说明，清理 `rcS` 中未启用的产品启动项，媒体
+  ROMFS 前缀改为本队名称；
 - 新增 `app/bsp_diag/`，只保留 AP/RPTUN/SMP 和 Wi-Fi VNET 两个诊断入口。
 
 未纳入：参考仓的 `app/bk7258`、`app/dolphin`、Gateway、Android、QuickApp、
