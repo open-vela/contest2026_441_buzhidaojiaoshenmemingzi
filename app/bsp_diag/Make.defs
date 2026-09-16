@@ -1,0 +1,7 @@
+############################################################################
+# Contest 2026 team 441 BK7258 BSP diagnostics
+############################################################################
+
+ifneq ($(CONFIG_CONTEST2026_441_BSP_APCTL)$(CONFIG_CONTEST2026_441_BSP_WIFI),)
+CONFIGURED_APPS += $(APPDIR)/system/contest2026_441_bsp_diag
+endif

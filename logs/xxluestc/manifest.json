@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "team_id": "contest2026_441_buzhidaojiaoshenmemingzi",
+  "github_login": "xxluestc",
+  "generator": "mimocode-collector@1.4.0",
+  "updated_at": "2026-08-26T07:56:16.187518+00:00",
+  "sessions": [
+    {
+      "session_id": "ses_-ffe5fc304f97fffeCivqG0TlI",
+      "tool": "mimocode",
+      "started_at": "2026-08-26T07:31:19.297Z",
+      "last_event_at": "2026-08-26T07:31:25.447Z",
+      "event_count": 37,
+      "raw_message_count": 2,
+      "file_path": "logs/xxluestc/2026-08-26/mimocode__ses_-ffe5fc304f97fffeCivqG0TlI.jsonl",
+      "collection_mode": "cli",
+      "health": "ok",
+      "title": "New session - 2026-08-26T07:31:19.297Z"
+    },
+    {
+      "session_id": "ses_-ffe5fc2f2d2b7ffelJqk9Xy64",
+      "tool": "mimocode",
+      "started_at": "2026-08-26T07:51:08.873Z",
+      "last_event_at": "2026-08-26T07:51:12.466Z",
+      "event_count": 37,
+      "raw_message_count": 2,
+      "file_path": "logs/xxluestc/2026-08-26/mimocode__ses_-ffe5fc2f2d2b7ffelJqk9Xy64.jsonl",
+      "collection_mode": "cli",
+      "health": "ok",
+      "title": "New session - 2026-08-26T07:51:08.873Z"
+    },
+    {
+      "session_id": "ses_-ffe5fc2f0c2c9ffe4tOBLv9s8",
+      "tool": "mimocode",
+      "started_at": "2026-08-26T07:53:24.130Z",
+      "last_event_at": "2026-08-26T07:53:26.554Z",
+      "event_count": 2,
+      "file_path": "logs/xxluestc/2026-08-26/mimocode__ses_-ffe5fc2f0c2c9ffe4tOBLv9s8.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok"
+    }
+  ]
+}

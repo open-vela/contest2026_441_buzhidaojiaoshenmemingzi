@@ -1,0 +1,118 @@
+
+nsh> apctl status
+AP state=READY(2) error=0 generation=1 heartbeat=1569
+AP core local=0 physical=1 VTOR(init/run)=02150000/28050800 MSP(init/run)=28050800/28050800
+AP clock=120000000 SysTick ctrl/load/current=00000003/0000001f/00000012
+AP heap=280592ec..280967fc test=2805a1e0 doorbells cp/ap=0/1
+RPTUN state=CONNECTED(4) error=0 generation=1 flags=00007f3f
+RPTUN pending cp/ap=00000000/00000000 heartbeat cp/ap=0/0 epoch cp/ap=1/1
+RPTUN rx sequence cp/ap=23/13
+CPU2 state=SCHEDULER_ONLINE(8) error=0 generation=1 heartbeat=0
+CPU2 core local=1 physical=2 vector=02150200 VTOR=02150200 MSP(init/run)=28097000/28097000
+CPU2 control=00000002 SYS(before/after)=00000038/02150231
+CPU2 bootstrap entry=021509cd idle=280597d8..28059fc0 ready=1 online=00000003 calls=2 boots=1
+AP IPI state=READY(2) error=0 generation=1 requested=0 completed=0 runs=0
+IPI 0->1 tx/rx/pending=0/0/0 seq=0/0 dup/lost/fail=0/0/0
+IPI 1->0 tx/rx/pending=0/0/0 seq=0/0 dup/lost/fail=0/0/0
+IPI irq/wake cpu0=1/1 cpu1=1/1 stale/spurious=0/0
+AP SMP state=PASSED(4) error=0 generation=1 online=00000003 boots=1 runs=1 requested/completed=2/2
+SMP tx/rx cpu0=1/1 cpu1=1/1 coalesced=0/0 fail=0/0
+SMP handler call/delivered cpu0=1/1 cpu1=1/1 callbacks=1/1 lastcpu=0
+SMP SysTick cpu0/cpu1=160922/0 sleep enter/return=1569/1568
+nsh> bkwifi status
+BKWIFI RESULT operation=status status=0 link=0 rssi=0 ip=0.0.0.0 mask=0.0.0.0 router=0.0.0.0
+nsh> bkwifi connect-args <SSID_REDACTED> <PASSWORD_REDACTED> 30000
+[  161.635844] [10] [  INFO] [cp] [ef]
+[  161.636813] [10] [  INFO] [cp] ENV isn't initialize OK.
+[  161.664750] [ 8] [  INFO] [cp] [wifid]
+[  161.665844] [ 8] [  INFO] [cp] mm_add_if_req: vif_idx=0, type=0, p2p=0, status=0
+[  161.688813] [ 9] [  INFO] [cp] [wpa]
+[  161.689750] [ 9] [  INFO] [cp] State: DISCONNECTED -> INACTIVE
+[  161.691907] [ 9] [  INFO] [cp] [wpa]
+[  161.692938] [ 9] [  INFO] [cp] State: INACTIVE -> DISCONNECTED
+[  161.697469] [ 9] [  INFO] [cp] [lwip]
+[  161.700313] [ 9] [  INFO] [cp] mac <MAC_REDACTED>
+[  161.709219] [10] [  INFO] [cp] [ef]
+[  161.710250] [10] [  INFO] [cp] ENV isn't initialize OK.
+[  161.715438] [ 9] [  INFO] [cp] [wpa]
+[  161.717594] [ 9] [  INFO] [cp] Setting scan request: 0.000000 sec
+[  161.724907] [ 9] [  INFO] [cp] [wpa]
+[  161.727313] [ 9] [  INFO] [cp] State: DISCONNECTED -> SCANNING
+[  163.473782] [ 8] [  INFO] [cp] [wifid]
+[  163.475063] [ 8] [  INFO] [cp] [KW:]scanu_confirm:status=0,req_type=0,upload_cnt=19,recv_cnt=105,time=1733571us,result=3,rfcli=0
+[  163.561344] [ 9] [  INFO] [cp] [wpa]
+[  163.561625] [ 9] [  INFO] [cp] Scan completed in 1.817000 seconds
+[  163.563782] [ 9] [  INFO] [cp] [hitf]
+[  163.564625] [ 9] [  INFO] [cp] get scan result:3
+[  163.668250] [ 9] [  INFO] [cp] [wpa]
+[  163.669250] [ 9] [  INFO] [cp] State: SCANNING -> ASSOCIATING
+[  163.676594] [ 8] [  INFO] [cp] [wifid]
+[  163.677750] [ 8] [  INFO] [cp] chan_ctxt_add: CTXT0,freq2452MHz,bw20MHz,pwr20dBm
+[  163.680657] [ 8] [  INFO] [cp] [wifid]
+[  163.681719] [ 8] [  INFO] [cp] chan_reg_fix:VIF0,CTXT0,type3,ctxt_s0,nb_vif0
+[  163.692125] [ 8] [  INFO] [cp] [wifid]
+[  163.693250] [ 8] [  INFO] [cp] mm_sta_add:vif 0,sta 0,status 0
+[  163.749500] [ 8] [  INFO] [cp] [wifid]
+[  163.750344] [ 8] [  INFO] [cp] [KW:]auth_send:seq1, txtype0, auth_type0, seq46
+[  163.758875] [ 8] [  INFO] [cp] [wifid]
+[  163.760032] [ 8] [  INFO] [cp] [KW:]sm_auth_handler: status code 0, tx status 0x80800000
+[  163.763813] [ 8] [  INFO] [cp] [wifid]
+[  163.764844] [ 8] [  INFO] [cp] [KW:]assoc_req_send:is ht, seq_num:47
+[  163.777844] [ 8] [  INFO] [cp] [wifid]
+[  163.778813] [ 8] [  INFO] [cp] [KW:]assoc_rsp:status0,tx_s0x80800000
+[  163.785407] [ 8] [  INFO] [cp] [wifid]
+[  163.786344] [ 8] [  INFO] [cp] [KW:]mm_set_vif_state,vif=0,vif_type=0,is_active=1, aid=0x3,rssi=-50
+[  163.802469] [ 9] [  INFO] [cp] [wpa]
+[  163.803625] [ 9] [  INFO] [cp] State: ASSOCIATING -> ASSOCIATED
+[  163.879219] [ 9] [  INFO] [cp] [wpa]
+[  163.880219] [ 9] [  INFO] [cp] State: ASSOCIATED -> 4WAY_HANDSHAKE
+[  163.889782] [ 9] [  INFO] [cp] [wpa]
+[  163.890750] [ 9] [  INFO] [cp] WPA: TK 0x28035c58b
+[  163.928844] [ 9] [  INFO] [cp] [wpa]
+[  163.930094] [ 9] [  INFO] [cp] State: 4WAY_HANDSHAKE -> 4WAY_HANDSHAKE
+[  163.944719] [ 9] [  INFO] [cp] [hitf]
+[  163.945907] [ 9] [  INFO] [cp] add CCMP
+[  163.949282] [ 9] [  INFO] [cp] [wpa]
+[  163.950188] [ 9] [  INFO] [cp] State: 4WAY_HANDSHAKE -> GROUP_HANDSHAKE
+[  163.952375] [ 9] [  INFO] [cp] [hitf]
+[  163.955313] [ 9] [  INFO] [cp] add CCMP
+[  163.960344] [ 9] [  INFO] [cp] [wpa]
+[  163.962750] [ 9] [  INFO] [cp] State: GROUP_HANDSHAKE -> COMPLETED
+[  163.970719] [ 9] [  INFO] [cp] [ef]
+[  163.972438] [ 9] [  INFO] [cp] ENV isn't initialize OK.
+[  163.979594] [ 9] [  INFO] [cp] [ef]
+[  163.981188] [ 9] [  INFO] [cp] ENV isn't initialize OK.
+[  163.987188] [ 9] [  INFO] [cp] [ef]
+[  163.989938] [ 9] [  INFO] [cp] ENV isn't initialize OK.
+[  163.995344] [ 5] [  INFO] [cp] [lwip]
+[  164.000219] [ 5] [  INFO] [cp] sta ip start
+[  164.004375] [ 5] [  INFO] [cp] [lwip]
+[  164.006719] [ 5] [  INFO] [cp] [KW:]sta:DHCP_DISCOVER()
+[  164.057532] [ 6] [  INFO] [cp] [lwip]
+[  164.058469] [ 6] [  INFO] [cp] [KW:]sta:DHCP_DISCOVER()
+[  164.313188] [ 6] [  INFO] [cp] [lwip]
+[  164.314344] [ 6] [  INFO] [cp] [KW:]sta:DHCP_OFFER received in DHCP_STATE_SELECTING state
+[  164.317563] [ 6] [  INFO] [cp] [lwip]
+[  164.318438] [ 6] [  INFO] [cp] [KW:]sta:DHCP_REQUEST(netif=0x28011534) en   1
+[  164.340969] [ 6] [  INFO] [cp] [lwip]
+[  164.342313] [ 6] [  INFO] [cp] [KW:]sta:DHCP_ACK received
+[  164.348750] [ 8] [  INFO] [cp] [wifid]
+[  164.349907] [ 8] [  INFO] [cp] [KW:]me dhcp done vif:0
+[  164.355938] [ 6] [  INFO] [cp] cif_bk_send_event
+[  164.358157] [ 6] [  INFO] [cp] [ef]
+[  164.358969] [ 6] [  INFO] [cp] ENV isn't initialize OK.
+[  164.362125] [ 6] [  INFO] [cp] [ef]
+[  164.365157] [ 6] [  INFO] [cp] ENV isn't initialize OK.
+[  164.370813] [ 6] [  INFO] [cp] [ef]
+[  164.373719] [ 6] [  INFO] [cp] ENV isn't initialize OK.
+[  164.381375] [ 5] [  INFO] [cp] [event]
+[  164.382719] [ 5] [  INFO] [cp] event <2 0> has no cb
+[  164.154688] [CPU0] [ 8] [  INFO] [ap] [event]
+[  164.161438] [CPU0] [ 8] [  INFO] [ap] event <1 2> has no cb
+BKWIFI RESULT operation=connect status=0 link=3 rssi=-45 ip=<IP_REDACTED> mask=255.255.255.0 router=<ROUTER_REDACTED>
+nsh> bkwifi status
+BKWIFI RESULT operation=status status=0 link=3 rssi=-45 ip=<IP_REDACTED> mask=255.255.255.0 router=<ROUTER_REDACTED>
+nsh> bkwifi ping
+BKWIFI RESULT operation=ping status=0 link=3 rssi=-45 ip=<IP_REDACTED> mask=255.255.255.0 router=<ROUTER_REDACTED>
+nsh>
+nsh>

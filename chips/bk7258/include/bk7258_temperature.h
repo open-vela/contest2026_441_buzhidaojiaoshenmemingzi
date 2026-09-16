@@ -1,0 +1,126 @@
+/****************************************************************************
+ * chips/bk7258/include/bk7258_temperature.h
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * BK7258 CP-owned on-die temperature sensor interface.
+ ****************************************************************************/
+
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_TEMPERATURE_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_TEMPERATURE_H
+
+/****************************************************************************
+ * Included Files
+ ****************************************************************************/
+
+#include <nuttx/config.h>
+
+#include <stdbool.h>
+#include <stdint.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+/****************************************************************************
+ * Pre-processor Definitions
+ ****************************************************************************/
+
+#define BK7258_TEMPERATURE_FLAG_RAW_VALID       (1u << 0)
+#define BK7258_TEMPERATURE_FLAG_CALIBRATED      (1u << 1)
+
+/* The immutable v3.1.1.9 CP bundle defines CONFIG_SOC_BK7236XX for BK7258
+ * and uses the non-SDMADC branch of temp_detect.h.  Its one-shot API accepts
+ * raw values strictly inside (10, 1365), and the transfer slope is 46 ADC
+ * codes per 10 degrees C.  The raw value decreases as temperature rises.
+ */
+
+#define BK7258_TEMPERATURE_RAW_MIN              11u
+#define BK7258_TEMPERATURE_RAW_MAX              1364u
+#define BK7258_TEMPERATURE_LSB_PER_10C          46u
+
+#define BK7258_TEMPERATURE_VALIDATION_MAGIC     0x504d5442u /* "BTMP" */
+#define BK7258_TEMPERATURE_VALIDATION_VERSION   1u
+#define BK7258_TEMPERATURE_VALIDATION_RUNNING   1u
+#define BK7258_TEMPERATURE_VALIDATION_PASSED    2u
+#define BK7258_TEMPERATURE_VALIDATION_FAILED    3u
+
+/****************************************************************************
+ * Public Types
+ ****************************************************************************/
+
+struct bk7258_temperature_sample_s
+{
+  uint32_t generation;
+  uint32_t sequence;
+  uint32_t raw_code;
+  uint32_t reference_raw;
+  int32_t temperature_millicelsius;
+  uint32_t flags;
+};
+
+/* Versioned debugger-visible result published by the optional validation
+ * worker.  The state field is the completion publication field; consumers
+ * must validate magic/version before interpreting the remaining members.
+ */
+
+struct bk7258_temperature_validation_diag_s
+{
+  uint32_t magic;
+  uint16_t version;
+  uint16_t state;
+  int32_t status;
+  uint32_t generation;
+  uint32_t successful_samples;
+  uint32_t failed_samples;
+  uint32_t minimum_raw;
+  uint32_t maximum_raw;
+  uint32_t last_raw;
+  int32_t last_millicelsius;
+  uint32_t last_flags;
+};
+
+/****************************************************************************
+ * Public Function Prototypes
+ ****************************************************************************/
+
+/* Register the role-specific RPMsg endpoint.  On AP, a thermal zone is also
+ * registered once a valid per-device 25 C reference is available.
+ */
+
+int bk7258_temperature_initialize(void);
+
+#ifdef CONFIG_BK7258_AP_CORE
+/* Perform one bounded CP measurement.  raw_code is always authoritative when
+ * RAW_VALID is set.  temperature_millicelsius must only be consumed when
+ * CALIBRATED is set.
+ */
+
+int bk7258_temperature_read(
+  struct bk7258_temperature_sample_s *sample);
+
+/* Supply this device's factory raw ADC code measured at 25 C.  The value is
+ * per-chip calibration data, not a board-wide nominal constant.
+ */
+
+int bk7258_temperature_set_reference_raw(uint32_t reference_raw);
+
+#ifdef CONFIG_BK7258_TEMPERATURE_VALIDATION
+extern volatile struct bk7258_temperature_validation_diag_s
+  g_bk7258_temperature_validation_diag;
+
+int bk7258_temperature_validation_start(void);
+#endif
+#else
+/* Coordinated standby must not enter while the CP LPWORK sampler owns the
+ * SDK SARADC path.
+ */
+
+bool bk7258_temperature_server_idle(void);
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_TEMPERATURE_H */

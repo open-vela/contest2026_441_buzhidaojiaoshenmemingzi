@@ -1,0 +1,26 @@
+menu "Contest 2026 team 441 BK7258 BSP diagnostics"
+
+config CONTEST2026_441_BSP_APCTL
+	bool "AP/RPTUN/SMP status command"
+	default n
+	depends on BK7258_AP_CONTROL && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Build the apctl command used to inspect CPU0-to-AP startup,
+		RPTUN state, physical CPU2 and AP SMP status.  The command is a
+		diagnostic front end; the driver state remains in the BK7258 BSP.
+
+config CONTEST2026_441_BSP_WIFI
+	bool "Wi-Fi VNET diagnostic command"
+	default n
+	depends on BK7258_WIFI_VNET && !BK7258_AP_CORE && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	select SCHED_WAITPID
+	help
+		Build the bkwifi command for scan, association, DHCP/status and
+		bounded network tests through the AP-owned Wi-Fi VNET service.
+		Credentials are entered at runtime and are never compiled in.
+
+endmenu

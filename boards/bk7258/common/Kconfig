@@ -1,0 +1,209 @@
+#
+# NuttX board configuration for the Beken BK7258 logical board.
+#
+
+config ARCH_BOARD_BK7258
+	bool "Beken BK7258 platform"
+	depends on ARCH_BOARD_CUSTOM
+	default y
+	select BOARD_LATE_INITIALIZE
+	---help---
+		Board-level bindings for the shared BK7258 chip implementation.  The
+		late hook runs the board-owned stage order and passes immutable product
+		storage topology into chip mechanisms.  The selected physical-board
+		directory supplies its own identity, GPIOs and capabilities.
+
+# Hidden physical capabilities used only by board/application policy.  Chip
+# Kconfig exposes SoC mechanisms without depending on board-layer symbols.
+
+config BK7258_BOARD_HAS_USER_GPIO_BINDING
+	bool
+
+config BK7258_BOARD_HAS_SDIO_BINDING
+	bool
+
+config BK7258_BOARD_HAS_SDIO_4BIT
+	bool
+
+config BK7258_BOARD_DEFAULT_SDIO_4BIT
+	bool
+	depends on BK7258_BOARD_HAS_SDIO_4BIT
+
+config BK7258_BOARD_HAS_UART2_ROUTE
+	bool
+
+config BK7258_BOARD_HAS_LVGL_UI_BINDING
+	bool
+
+config BK7258_BOARD_DEFERRED_INIT
+	bool
+	depends on BK7258_AP_CORE
+	help
+		The selected physical board provides a non-blocking post-READY hook
+		which starts low-priority discovery of optional attached devices.
+		The hook itself must return promptly: storage/media probing and other
+		potentially blocking device work belongs in the task it starts, never
+		in the AP readiness path.
+
+# UART2 is a chip controller, but the legal pin group is physical-board
+# wiring.  A board must explicitly publish a verified route capability before
+# this choice becomes visible.
+
+if BK7258_UART2 && BK7258_BOARD_HAS_UART2_ROUTE
+
+choice
+	prompt "Board UART2 pin route"
+	default BK7258_UART2_PINS_P30_P31
+
+config BK7258_UART2_PINS_P30_P31
+	bool "P31 TX / P30 RX"
+
+config BK7258_UART2_PINS_P40_P41
+	bool "P41 TX / P40 RX"
+	help
+		This alternate chip mux shares P40/P41 with display and I2S2
+		functions.  The paired CP/AP build validation checks ownership.
+
+endchoice
+
+endif
+
+# The Beken V2 SDIO data helpers compile the bus width into the selected SDK
+# bundle.  Keep the NuttX capability and SDK profile choice explicit and
+# constrained by physical-board wiring.
+
+config BK7258_SDIO_4BIT
+	bool "Use four-bit SDIO bus"
+	default y if BK7258_BOARD_DEFAULT_SDIO_4BIT
+	depends on BK7258_BOARD_HAS_SDIO_4BIT
+	help
+		Enable D1/D2/D3 in addition to CLK/CMD/D0.  The selected physical
+		board decides whether those pins are routed safely and whether four-bit
+		operation is the default.  This option requires the separately identified
+		v3.1.1.9-sdio4 AP SDK bundle because the vendor data helpers reapply
+		their compile-time width on every transfer.
+
+# Persistent storage is a system topology, independent of any application or
+# physical-board name.  A selected board supplies only the required hardware
+# capability and electrical binding.
+
+config BK7258_STORAGE_ONCHIP_PERSISTENT
+	bool "Persistent data on BK7258 on-chip Flash"
+	default n
+	depends on ARCH_BOARD_BK7258 && ARCH_CHIP_BK7258 && !BK7258_AP_CORE
+	select BK7258_ONCHIP_DATAFS
+	help
+		Expose the CSV-selected persistent_data range through MTD and mount
+		LittleFS at /data.  Ordinary boot never auto-formats the range.
+
+config BK7258_ONCHIP_DATAFS
+	bool "CP on-chip private data filesystem"
+	default n
+	depends on ARCH_BOARD_BK7258 && ARCH_CHIP_BK7258 && !BK7258_AP_CORE
+	select BK7258_FLASH_MTD
+	select FS_LITTLEFS
+	help
+		Expose the CSV-selected persistent_data range at /data on CP.
+		This filesystem may coexist with AP fixed/removable primary storage;
+		it does not change the CSV's primary storage topology or export /data
+		through USB MSC. Boot only mounts an existing LittleFS, never formats.
+
+config BK7258_STORAGE_REMOVABLE_BLOCK
+	bool "Persistent data on removable block media"
+	default n
+	depends on ARCH_BOARD_BK7258 && ARCH_CHIP_BK7258 && BK7258_AP_CORE
+	depends on BK7258_BOARD_HAS_SDIO_BINDING
+	help
+		Use an already provisioned removable block medium.  Partitioning and
+		formatting are explicit provisioning operations, never boot actions.
+
+config BK7258_STORAGE_FIXED_BLOCK
+	bool "Persistent data on fixed block media"
+	default n
+	depends on ARCH_BOARD_BK7258 && ARCH_CHIP_BK7258 && BK7258_AP_CORE
+	depends on BK7258_BOARD_HAS_SDIO_BINDING
+	help
+		Use an already provisioned soldered block medium.  Capacity is read
+		from the device; no nominal board size becomes a coded end address.
+
+config BK7258_OTA
+	bool "Paired MCUboot OTA staging on CP"
+	default n
+	depends on ARCH_BOARD_BK7258 && ARCH_CHIP_BK7258 && !BK7258_AP_CORE
+	depends on BK7258_MCUBOOT_IMAGE
+	select CRYPTO
+	select BK7258_WDT
+	---help---
+		Enable the chip-owned CP/AP pair update engine with the board-owned
+		layout and serialized storage binding.  The engine writes only the
+		physical inactive pair, completes AP before CP, and commits CP sector
+		zero last.  It validates the selected layout, exact physical sizes and
+		streamed SHA-256 digests supplied by an authenticated source manifest.
+		Runtime health confirmation updates both standard MCUboot image_ok
+		trailers.  The application owns transport and package download; the
+		board owns the optional generation-bound trial policy.
+
+if BK7258_OTA
+
+config BK7258_OTA_AUTO_CONFIRM
+	bool "Automatically confirm a healthy pending CP/AP pair"
+	default n
+	depends on BK7258_AP_SUPERVISOR
+	help
+		Start a CP-only policy worker when BL2 boots a pending pair.  Confirmation
+		requires fresh CP/AP, CPU2 and RPMsg Supervisor health for one continuous
+		stable interval.  A generation change or trial deadline triggers
+		whole-device reset so BL2 can select the confirmed fallback.  Product
+		application voting remains an optional higher-level adapter.
+
+config BK7258_OTA_TRIAL_PRIORITY
+	int "OTA trial policy priority"
+	default 190
+	range 1 199
+	depends on BK7258_OTA_AUTO_CONFIRM
+	help
+		Keep the policy below the AP Supervisor while above ordinary application
+		tasks.  Flash confirmation remains serialized by the Flash guard.
+
+config BK7258_OTA_TRIAL_STACKSIZE
+	int "OTA trial policy stack size"
+	default 3072
+	range 2048 8192
+	depends on BK7258_OTA_AUTO_CONFIRM
+
+config BK7258_OTA_TRIAL_POLL_MS
+	int "OTA trial policy poll interval (milliseconds)"
+	default 250
+	range 50 2000
+	depends on BK7258_OTA_AUTO_CONFIRM
+
+config BK7258_OTA_TRIAL_STABLE_MS
+	int "Continuous CP/AP platform health before confirm (milliseconds)"
+	default 10000
+	range 5000 120000
+	depends on BK7258_OTA_AUTO_CONFIRM
+
+config BK7258_OTA_TRIAL_TIMEOUT_MS
+	int "Pending trial deadline before revert reset (milliseconds)"
+	default 60000
+	range 15000 600000
+	depends on BK7258_OTA_AUTO_CONFIRM
+
+config BK7258_OTA_TRIAL_HEALTH_MAX_AGE_MS
+	int "Maximum accepted Supervisor sample age (milliseconds)"
+	default 2000
+	range 500 10000
+	depends on BK7258_OTA_AUTO_CONFIRM
+
+config BK7258_OTA_TRIAL_CONFIRM_TIMEOUT_MS
+	int "Maximum in-progress pair confirmation time (milliseconds)"
+	default 10000
+	range 6000 30000
+	depends on BK7258_OTA_AUTO_CONFIRM
+	help
+		Independent lease for the Flash-guard wait and two trailer RMWs.  The
+		deadline worker uses this while state is CONFIRMING instead of the normal
+		policy heartbeat timeout, preventing a false reset during bounded Flash
+		contention while still failing closed if confirmation stalls.
+
+endif

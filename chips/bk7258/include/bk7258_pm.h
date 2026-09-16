@@ -1,0 +1,173 @@
+/****************************************************************************
+ * chips/bk7258/include/bk7258_pm.h
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * BK7258 CP-owned peripheral clock service.
+ ****************************************************************************/
+
+#ifndef __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_PM_H
+#define __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_PM_H
+
+#include <stdbool.h>
+#include <stdint.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+/****************************************************************************
+ * Public Types
+ ****************************************************************************/
+
+/* These are project-owned logical clock IDs, not raw SDK register indices.
+ * CP maps each allowed ID to the v3.1.1.9 sys_ctrl implementation.
+ */
+
+enum bk7258_pm_clock_e
+{
+  BK7258_PM_CLOCK_SDIO = 0,
+  BK7258_PM_CLOCK_QSPI0,
+  BK7258_PM_CLOCK_QSPI1,
+  BK7258_PM_CLOCK_CAN,
+  BK7258_PM_CLOCK_USB,
+  BK7258_PM_CLOCK_ETHERNET,
+  BK7258_PM_CLOCK_JPEG,
+  BK7258_PM_CLOCK_DISPLAY,
+  BK7258_PM_CLOCK_AUDIO,
+  BK7258_PM_CLOCK_I2C1,
+  BK7258_PM_CLOCK_SPI1,
+  BK7258_PM_CLOCK_UART0,
+  BK7258_PM_CLOCK_PWM1,
+  BK7258_PM_CLOCK_TIMER1,
+  BK7258_PM_CLOCK_SARADC,
+  BK7258_PM_CLOCK_IRDA,
+  BK7258_PM_CLOCK_EFUSE,
+  BK7258_PM_CLOCK_I2C2,
+  BK7258_PM_CLOCK_SPI2,
+  BK7258_PM_CLOCK_UART1,
+  BK7258_PM_CLOCK_UART2,
+  BK7258_PM_CLOCK_PWM2,
+  BK7258_PM_CLOCK_TIMER2,
+  BK7258_PM_CLOCK_TIMER3,
+  BK7258_PM_CLOCK_OTP,
+  BK7258_PM_CLOCK_I2S1,
+  BK7258_PM_CLOCK_PSRAM,
+  BK7258_PM_CLOCK_AUXS,
+  BK7258_PM_CLOCK_BTDM,
+  BK7258_PM_CLOCK_XVR,
+  BK7258_PM_CLOCK_MAC,
+  BK7258_PM_CLOCK_PHY,
+  BK7258_PM_CLOCK_WATCHDOG,
+  BK7258_PM_CLOCK_H264,
+  BK7258_PM_CLOCK_I2S2,
+  BK7258_PM_CLOCK_I2S3,
+  BK7258_PM_CLOCK_YUV,
+  BK7258_PM_CLOCK_SEGMENT_LCD,
+  BK7258_PM_CLOCK_LIN,
+  BK7258_PM_CLOCK_CAMERA_MCLK_24M,
+  BK7258_PM_CLOCK_DMA2D,
+  BK7258_PM_CLOCK_JPEG_DECODER,
+  BK7258_PM_CLOCK_SCALE0,
+  BK7258_PM_CLOCK_SCALE1,
+  BK7258_PM_CLOCK_ROTATOR,
+  BK7258_PM_CLOCK_COUNT
+};
+
+/* Stable board-owned frequency clients.  These deliberately do not expose
+ * the role-dependent v3.1.1.9 pm_dev_id_e values over RPMsg. */
+
+enum bk7258_pm_freq_client_e
+{
+  BK7258_PM_FREQ_CLIENT_DEFAULT = 0,
+  BK7258_PM_FREQ_CLIENT_VIDEO_ENCODER,
+  BK7258_PM_FREQ_CLIENT_VIDEO_DECODER,
+  BK7258_PM_FREQ_CLIENT_DISPLAY,
+  BK7258_PM_FREQ_CLIENT_AUDIO,
+  BK7258_PM_FREQ_CLIENT_WIFI,
+  BK7258_PM_FREQ_CLIENT_BLUETOOTH,
+  BK7258_PM_FREQ_CLIENT_USB,
+  BK7258_PM_FREQ_CLIENT_PWM,
+  BK7258_PM_FREQ_CLIENT_SECURE,
+  BK7258_PM_FREQ_CLIENT_CPU1,
+  BK7258_PM_FREQ_CLIENT_APP,
+  BK7258_PM_FREQ_CLIENT_CAMERA, /* DVP lifetime, independent of SDK codec votes */
+  BK7258_PM_FREQ_CLIENT_COUNT
+};
+
+/* Values match the v3.1.1.9 pm_cpu_freq_e ABI exactly.  Despite the SDK type
+ * name, these values are shared SoC operating-point labels, not a direct
+ * physical-CPU frequency.  OPP 320M means CPU0/AP/bus 160/320/160 MHz; OPP
+ * 480M means 240/480/240 MHz.  Keep the legacy enumerator spelling for the
+ * vendor ABI and use the BK7258_PM_OPP_* aliases in project-owned code.
+ */
+
+enum bk7258_pm_cpu_freq_e
+{
+  BK7258_PM_CPU_FREQ_26M = 0,
+  BK7258_PM_CPU_FREQ_60M,
+  BK7258_PM_CPU_FREQ_80M,
+  BK7258_PM_CPU_FREQ_120M,
+  BK7258_PM_CPU_FREQ_240M,
+  BK7258_PM_CPU_FREQ_320M,
+  BK7258_PM_CPU_FREQ_480M,
+  BK7258_PM_CPU_FREQ_DEFAULT
+};
+
+typedef enum bk7258_pm_cpu_freq_e bk7258_pm_opp_t;
+
+#define BK7258_PM_OPP_26M       BK7258_PM_CPU_FREQ_26M
+#define BK7258_PM_OPP_60M       BK7258_PM_CPU_FREQ_60M
+#define BK7258_PM_OPP_80M       BK7258_PM_CPU_FREQ_80M
+#define BK7258_PM_OPP_120M      BK7258_PM_CPU_FREQ_120M
+#define BK7258_PM_OPP_240M      BK7258_PM_CPU_FREQ_240M
+#define BK7258_PM_OPP_320M      BK7258_PM_CPU_FREQ_320M
+#define BK7258_PM_OPP_480M      BK7258_PM_CPU_FREQ_480M
+#define BK7258_PM_OPP_DEFAULT   BK7258_PM_CPU_FREQ_DEFAULT
+
+struct bk7258_pm_frequency_status_s
+{
+  uint32_t current;      /* Current shared SDK OPP enum, not CPU0 MHz. */
+  uint32_t peak;         /* Highest OPP enum requested, not peak CPU0 Hz. */
+  uint32_t transitions;
+};
+
+/****************************************************************************
+ * Public Function Prototypes
+ ****************************************************************************/
+
+int bk7258_pm_initialize(void);
+
+#ifdef CONFIG_BK7258_PM_SOFT_OFF
+/* Caller must stop new work, drain users and sync storage before requesting.
+ * Success means accepted for reboot-to-sleep, not physical power removal.
+ */
+
+int bk7258_pm_soft_off_request(void);
+/* 0: no queued reset, 1: pending; negative: status not known. */
+int bk7258_pm_soft_off_status(void);
+#ifndef CONFIG_BK7258_AP_CORE
+struct bk7258_gpio_config_s;
+void bk7258_pm_soft_off_boot(const struct bk7258_gpio_config_s *config);
+#endif
+#endif
+int bk7258_pm_frequency_vote(enum bk7258_pm_freq_client_e client,
+                             bk7258_pm_opp_t opp);
+int bk7258_pm_frequency_get_status(
+  struct bk7258_pm_frequency_status_s *status);
+
+#ifndef CONFIG_BK7258_AP_CORE
+bool bk7258_pm_frequency_votes_idle(void);
+bool bk7258_pm_server_resources_idle(void);
+#endif
+
+#ifdef CONFIG_BK7258_AP_CORE
+int bk7258_pm_clock_get(enum bk7258_pm_clock_e clock);
+int bk7258_pm_clock_put(enum bk7258_pm_clock_e clock);
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __ARCH_ARM_SRC_BK7258_INCLUDE_BK7258_PM_H */

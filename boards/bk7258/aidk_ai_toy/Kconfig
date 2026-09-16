@@ -1,0 +1,164 @@
+# Shared BK7258 options; this board's defconfigs select AIDK AI Toy.
+source "../vendor/beken/boards/bk7258/common/Kconfig"
+
+config BK7258_BOARD_AIDK_AI_TOY
+	bool
+	default y
+	select BK7258_BOARD_DEFERRED_INIT if BK7258_AP_CORE
+	select BK7258_BOARD_HAS_SDIO_BINDING
+	select BK7258_BOARD_HAS_USER_GPIO_BINDING
+	help
+		AIDK AI Toy (BK7258 AI Demo) board: UART0 console, CH340E UART0,
+		SC7A20H accelerometer on SoC I2C0 (P20/P21), GC2145 SCCB on SoC
+		I2C1 map mode 1 (P42/P43), SD NAND, MIC1 plus MIC2
+		AEC-reference/PA audio, keys/LEDs, MFRC522 NFC and Type-C USB.  CN5's
+		single-screen module is disconnected. CN10's motor is fitted and
+		P9 is reserved for its active-high control; fitting does not imply
+		that the motor driver has passed hardware verification.
+
+config BK7258_AIDK_BUTTONS
+	bool "AIDK three polled keys as /dev/buttons"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY && !BK7258_AP_CORE
+	select ARCH_BUTTONS
+	select INPUT
+	select INPUT_BUTTONS
+	select BK7258_CP_GPIO_INPUT
+	help
+		Expose KEY1 (P13, volume down), KEY2 (P12, power), and KEY3
+		(P8, volume up) through the standard NuttX /dev/buttons upper half.
+		The physical keys are active-low and sampled on read. This board has
+		no button IRQ implementation, so BTNIOC_REGISTER and poll wakeups are
+		not supported; consumers must use bounded timed reads.
+
+config BK7258_AIDK_MOTOR
+	bool "AIDK CN10 motor product adapter"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY && BK7258_AP_CORE
+	help
+		Bind the fitted CN10 motor to the product haptic service. P9 is
+		high-active; only finite pulses with a cooldown are accepted.
+		Cancel and MIC capture stop the output. P52 uses a separate motor
+		vote. Initialization leaves the motor stopped.
+
+config BK7258_AIDK_SD_NAND
+	bool "AIDK SD NAND"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PM_CLOCK
+	select BK7258_BOARD_HAS_SDIO_4BIT
+	select BK7258_BOARD_DEFAULT_SDIO_4BIT
+	select BK7258_SDIO
+	select MMCSD
+	select MMCSD_SDIO
+	help
+		Bind the chip SDIO host to the AIDK soldered CSNP1GCR01-BOW
+		SD NAND on SDIO map mode 1 (P14-P19). The photographed U7 part
+		is specified as 1 Gbit by its manufacturer. Its current CSD
+		reports 126877696 bytes (247808 512-byte sectors, 121 MiB).
+		The schematic's 1 GB label does not match this fitted part.
+		Capacity remains CSD-derived. No card detect is available;
+		the media is always present.
+
+config BK7258_AIDK_DEFERRED_PRIORITY
+	int "AIDK attached-device worker priority"
+	default 80
+	range 1 199
+	depends on BK7258_BOARD_DEFERRED_INIT
+	help
+		SCHED_FIFO priority for post-READY SD NAND and optional attached-device
+		bring-up.  It remains below the AP supervisor, RPTUN and radio workers.
+
+config BK7258_AIDK_DEFERRED_STACKSIZE
+	int "AIDK attached-device worker stack size"
+	default 6144
+	range 4096 16384
+	depends on BK7258_BOARD_DEFERRED_INIT
+
+config BK7258_AIDK_SC7A20_PHASE0
+	bool "Probe AIDK SC7A20H identity at boot"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE
+	depends on BK7258_I2C && BK7258_I2C_BUS = 0
+	help
+		Perform a bounded, read-only SC7A20H identity check during AP board
+		bring-up.  The board opens the maintained I2C0 character device, reads
+		only WHO_AM_I at register 0x0f and requires value 0x11.  It does not
+		configure output data rate, axes, FIFO or interrupts and therefore is
+		not a production accelerometer driver.
+
+config BK7258_AIDK_SC7A20
+	bool "AIDK SC7A20H accelerometer"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE
+	depends on BK7258_I2C && BK7258_I2C_BUS = 0
+	depends on !BK7258_AIDK_SC7A20_PHASE0
+	select SENSORS
+	select SENSORS_SC7A20
+	help
+		Bind the fitted SC7A20H accelerometer on I2C0 to the standard NuttX
+		sensor upper half as /dev/uorb/sensor_accel0.  Samples use struct
+		sensor_accel and SI units.  This is the production sensor binding and
+		must not be enabled with the identity-only Phase 0 probe.
+
+config BK7258_AIDK_MFRC522
+	bool "AIDK MFRC522 NFC reader as /dev/nfc0"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE
+	depends on BK7258_UART1
+	select DRIVERS_CONTACTLESS
+	select CL_MFRC522
+	help
+		Bind the MFRC522 RFID/NFC reader on the UART1 host interface (P0/P1)
+		as /dev/nfc0.  The board supplies only a UART register-transport adapter;
+		the standard NuttX MFRC522 driver owns ISO14443-A anticollision, cascade
+		selection, CRC and the MFRC522IOC_* interface.
+
+config BK7258_AIDK_BATTERY
+	bool "AIDK battery/charge status as /dev/battery"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE
+	select BATTERY_CHARGER
+	select BK7258_SARADC
+	help
+		Expose the ETA4322 charger and VBAT cell through the standard NuttX
+		battery charger upper half at /dev/bat0.  BATIOC_STATE uses P51 5V_DET
+		and active-low P26 FULL_DET; BATIOC_GET_VOLTAGE triggers the ADC0 VBAT
+		conversion.  The paired CP image must select BK7258_SARADC_SERVER.
+
+config BK7258_AIDK_DUAL_LCD
+	bool "AIDK dual GC9D01 SPI framebuffers"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE && BK7258_PSRAM
+	select BK7258_LCD_SPI
+	select LCD
+	select LCD_GC9D01
+	select LCD_FRAMEBUFFER
+	select LCD_EXTERNINIT
+	select DRIVERS_VIDEO
+	select VIDEO_FB
+	help
+		Bind both fitted 160x160 GC9D01 panels to the standard NuttX
+		framebuffer ABI.  LCD1 is /dev/fb0 on QSPI1 and LCD2 is /dev/fb1 on
+		QSPI0.  The board owns the distinct RESET/DC pins and arbitrates the
+		P25 backlight and P52 LDO vote shared by both panels.  The generic
+		NuttX GC9D01 driver owns panel commands and state; the BK7258 chip
+		transport owns only the SPI-over-QSPI DMA data path.
+
+config BK7258_AIDK_CAMERA
+	bool "AIDK GC2145 DVP camera as /dev/video0"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE && BK7258_DVP && BK7258_PSRAM
+	select BK7258_DVP_BOARD_GLUE
+	select BK7258_DVP_SENSOR_GC2145
+	select BK7258_PSRAM_MEDIA
+	help
+		Bind the fitted AIDK GC2145 and its board-specific power/reset/pinmux
+		sequence to the reusable BK7258 DVP imgdata lower half and the standard
+		NuttX V4L2 capture upper half.  The initial production profile exposes
+		640x480, 30 fps MJPEG through /dev/video0.
