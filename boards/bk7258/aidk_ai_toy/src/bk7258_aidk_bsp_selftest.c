@@ -115,6 +115,29 @@ static int aidk_bsp_camera_test(void)
          (unsigned long)format.fmt.pix.pixelformat,
          (unsigned long)capture_size);
 
+  /* The pinned v4l2_cap.c capture_s_fmt() preserves sizeimage=0.
+   * Its get_bufsize() uses width * height for JPEG in that case.
+   * Match that upper-half contract for our USERPTR buffer, rather than
+   * treating an unspecified sizeimage as a failed camera capture.
+   */
+
+  if (capture_size == 0 &&
+      format.fmt.pix.pixelformat == V4L2_PIX_FMT_JPEG)
+    {
+      if (format.fmt.pix.width == 0 || format.fmt.pix.height == 0 ||
+          format.fmt.pix.width >
+          AIDK_BSP_CAMERA_MAX_SIZE / format.fmt.pix.height)
+        {
+          ret = -EOVERFLOW;
+          goto errout;
+        }
+
+      capture_size = format.fmt.pix.width * format.fmt.pix.height;
+      syslog(LOG_INFO,
+             "AIDK BSP CAMERA BUFFER source=nuttx-jpeg-default bytes=%lu\n",
+             (unsigned long)capture_size);
+    }
+
   if (capture_size == 0 || capture_size > AIDK_BSP_CAMERA_MAX_SIZE)
     {
       ret = -EOVERFLOW;
