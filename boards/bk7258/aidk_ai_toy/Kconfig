@@ -162,3 +162,18 @@ config BK7258_AIDK_CAMERA
 		sequence to the reusable BK7258 DVP imgdata lower half and the standard
 		NuttX V4L2 capture upper half.  The initial production profile exposes
 		640x480, 30 fps MJPEG through /dev/video0.
+
+config BK7258_AIDK_BSP_SELFTEST
+	bool "AIDK AP BSP data-path selftest"
+	default n
+	depends on BK7258_BOARD_AIDK_AI_TOY
+	depends on BK7258_AP_CORE
+	depends on BK7258_AIDK_DUAL_LCD
+	depends on BK7258_AIDK_CAMERA
+	depends on BK7258_AIDK_SD_NAND
+	help
+		Run one bounded, non-product validation after AP device bring-up.  The
+		selftest performs one real framebuffer line transfer, one V4L2 JPEG
+		capture and a temporary VFAT read/write round trip, then releases its
+		resources.  It is intended for BSP evidence images and must not be
+		confused with the product application.
