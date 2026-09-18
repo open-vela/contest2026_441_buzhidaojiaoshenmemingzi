@@ -29,6 +29,7 @@
 #include <arch/board/board.h>
 
 #define AIDK_BSP_CAMERA_TIMEOUT_MS       3000
+#define AIDK_BSP_CAMERA_MAX_SIZE         (1024u * 1024u)
 #define AIDK_BSP_SD_MOUNTPOINT           "/mnt/sdnand"
 #define AIDK_BSP_SD_TESTFILE              "/mnt/sdnand/.bsp-r1-test"
 #define AIDK_BSP_SD_TEST_TEXT             "bk7258-r1-bsp\n"
@@ -108,7 +109,13 @@ static int aidk_bsp_camera_test(void)
     }
 
   capture_size = format.fmt.pix.sizeimage;
-  if (capture_size == 0 || capture_size > 512u * 1024u)
+  syslog(LOG_INFO, "AIDK BSP CAMERA FORMAT %lux%lu fourcc=0x%08lx sizeimage=%lu\n",
+         (unsigned long)format.fmt.pix.width,
+         (unsigned long)format.fmt.pix.height,
+         (unsigned long)format.fmt.pix.pixelformat,
+         (unsigned long)capture_size);
+
+  if (capture_size == 0 || capture_size > AIDK_BSP_CAMERA_MAX_SIZE)
     {
       ret = -EOVERFLOW;
       goto errout;
@@ -222,11 +229,22 @@ static int aidk_bsp_storage_test(void)
 #ifdef CONFIG_BK7258_AIDK_SD_NAND
   struct stat status;
   char readback[sizeof(AIDK_BSP_SD_TEST_TEXT)];
+  FAR const char *device = NULL;
   int fd = -1;
   int ret;
   bool mounted = false;
 
-  if (stat("/dev/mmcsd0p0", &status) < 0)
+  if (stat("/dev/mmcsd0p0", &status) == 0)
+    {
+      device = "/dev/mmcsd0p0";
+    }
+  else if (stat("/dev/mmcsd0", &status) == 0)
+    {
+      device = "/dev/mmcsd0";
+      syslog(LOG_INFO,
+             "AIDK BSP SD DATA using raw block node; partition node absent\n");
+    }
+  else
     {
       if (errno == ENOENT)
         {
@@ -239,7 +257,7 @@ static int aidk_bsp_storage_test(void)
     }
 
   (void)mkdir(AIDK_BSP_SD_MOUNTPOINT, 0777);
-  if (mount("/dev/mmcsd0p0", AIDK_BSP_SD_MOUNTPOINT, "vfat", 0,
+  if (mount(device, AIDK_BSP_SD_MOUNTPOINT, "vfat", 0,
             NULL) == 0)
     {
       mounted = true;
