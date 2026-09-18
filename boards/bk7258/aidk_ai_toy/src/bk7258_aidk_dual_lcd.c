@@ -324,4 +324,54 @@ int bk7258_aidk_dual_lcd_initialize(void)
   return OK;
 }
 
+/* Exercise one real pixel transfer on each panel.  This is deliberately a
+ * board-level diagnostic hook, not a product animation: it uses the
+ * framebuffer plane's public putrun callback and leaves the panels otherwise
+ * untouched. */
+
+int bk7258_aidk_dual_lcd_data_selftest(void)
+{
+  static const uint16_t pixels[8] =
+  {
+    0xf800, 0x07e0, 0x001f, 0xffff,
+    0xf800, 0x07e0, 0x001f, 0xffff
+  };
+  unsigned int index;
+
+  for (index = 0; index < nitems(g_aidk_lcd_panels); index++)
+    {
+      FAR struct aidk_lcd_panel_s *panel = &g_aidk_lcd_panels[index];
+      struct lcd_planeinfo_s plane;
+      int ret;
+
+      if (panel->lcddev == NULL || panel->lcddev->getplaneinfo == NULL)
+        {
+          return -ENODEV;
+        }
+
+      memset(&plane, 0, sizeof(plane));
+      ret = panel->lcddev->getplaneinfo(panel->lcddev, 0, &plane);
+      if (ret < 0 || plane.putrun == NULL)
+        {
+          return ret < 0 ? ret : -ENOSYS;
+        }
+
+      ret = plane.putrun(plane.dev, 0, 0,
+                         (FAR const uint8_t *)pixels,
+                         nitems(pixels));
+      if (ret < 0)
+        {
+          syslog(LOG_ERR,
+                 "AIDK LCD DATA FAIL fb=%u ret=%d\n",
+                 panel->fbno, ret);
+          return ret;
+        }
+    }
+
+  syslog(LOG_INFO, "AIDK LCD DATA PASS panels=%u pixels=%u\n",
+         (unsigned int)nitems(g_aidk_lcd_panels),
+         (unsigned int)nitems(pixels));
+  return OK;
+}
+
 #endif /* CONFIG_BK7258_AIDK_DUAL_LCD */

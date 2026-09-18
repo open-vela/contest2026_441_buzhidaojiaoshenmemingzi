@@ -25,6 +25,9 @@
 #ifdef CONFIG_BK7258_AP_CORE
 #ifdef CONFIG_BK7258_AIDK_CAMERA
 extern int bk7258_aidk_camera_initialize(void);
+#ifdef CONFIG_BK7258_AIDK_BSP_SELFTEST
+extern int bk7258_aidk_bsp_selftest(void);
+#endif
 #endif
 #ifdef CONFIG_BK7258_AIDK_SC7A20_PHASE0
 extern int bk7258_aidk_sc7a20_phase0_probe(void);
@@ -311,6 +314,25 @@ static int bk7258_aidk_deferred_worker(int argc, FAR char *argv[])
     {
       syslog(LOG_INFO,
              "AIDK DEFERRED stage=battery-pass elapsed=%lu ms\n",
+             (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
+    }
+#endif
+
+#ifdef CONFIG_BK7258_AIDK_BSP_SELFTEST
+  syslog(LOG_INFO, "AIDK DEFERRED stage=bsp-selftest-enter\n");
+  ret = bk7258_aidk_bsp_selftest();
+  if (ret < 0)
+    {
+      failures++;
+      syslog(LOG_ERR,
+             "AIDK DEFERRED stage=bsp-selftest-fail ret=%d elapsed=%lu ms\n",
+             ret,
+             (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
+    }
+  else
+    {
+      syslog(LOG_INFO,
+             "AIDK DEFERRED stage=bsp-selftest-pass elapsed=%lu ms\n",
              (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
     }
 #endif
