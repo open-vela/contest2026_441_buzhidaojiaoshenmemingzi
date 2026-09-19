@@ -25,7 +25,7 @@ services=(app/vision_badge/src/{workflow,camera_service,vision_service,audio_ser
 status=0
 "$output_dir/vision_badge-host" run test > "$output_dir/run-negative.log" 2>&1 || status=$?
 if [ "$status" -ne 1 ] ||
-   ! grep -q '^vision_badge: stage=error error=-' "$output_dir/run-negative.log"; then
+   ! grep -q '^vision_badge: stage=capture error=-' "$output_dir/run-negative.log"; then
   cat "$output_dir/run-negative.log" >&2
   printf 'Unexpected CLI negative-test result: exit=%s\n' "$status" >&2
   exit 1

@@ -15,7 +15,6 @@ int vision_service_query(const struct vision_badge_image_s *image,
                          const char *prompt,
                          struct vision_badge_result_s *result);
 
-int feedback_service_stage(enum vision_badge_stage_e stage);
 int feedback_service_present(const struct vision_badge_result_s *result);
 int feedback_service_vibrate(int direction_hint);
 
