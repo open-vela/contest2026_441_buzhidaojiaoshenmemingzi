@@ -147,12 +147,24 @@ static int aidk_bsp_camera_test(void)
   memset(&request, 0, sizeof(request));
   request.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   request.memory = V4L2_MEMORY_USERPTR;
+  /* A single capture buffer must use FIFO mode.  The pinned NuttX
+   * video_framebuff implementation advances the producer/consumer pointer
+   * only after a FIFO buffer is completed; with the default RING mode and
+   * one buffer, the ring points back to itself and DQBUF never becomes
+   * ready (the driver reports EAGAIN). */
+  request.mode = V4L2_BUF_MODE_FIFO;
   request.count = 1;
   if (ioctl(fd, VIDIOC_REQBUFS,
             (unsigned long)(uintptr_t)&request) < 0 ||
       request.count != 1)
     {
       ret = aidk_bsp_errno();
+      goto errout;
+    }
+
+  if (request.mode != V4L2_BUF_MODE_FIFO)
+    {
+      ret = -EPROTO;
       goto errout;
     }
 
