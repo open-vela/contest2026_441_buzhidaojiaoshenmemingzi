@@ -25,8 +25,6 @@
   <project path="contest2026_441_buzhidaojiaoshenmemingzi" name="contest2026_441_buzhidaojiaoshenmemingzi">
     <linkfile src="app/vision_badge" dest="packages/demos/contest2026_441_vision_badge"/>
     <linkfile src="app/bsp_diag" dest="apps/system/contest2026_441_bsp_diag"/>
-    <linkfile src="board/bk7258-r1"
-              dest="vendor/beken/boards/bk7258/bk7258-r1"/>
     <linkfile src="chips/bk7258" dest="vendor/beken/chips/bk7258"/>
     <linkfile src="boards/bk7258" dest="vendor/beken/boards/bk7258"/>
     <linkfile src="nuttx" dest="vendor/beken/nuttx"/>

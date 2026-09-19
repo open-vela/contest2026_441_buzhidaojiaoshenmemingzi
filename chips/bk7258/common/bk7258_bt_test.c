@@ -43,9 +43,6 @@
 #include <nuttx/signal.h>
 
 #include <arch/chip/bk7258_bt_ipc.h>
-#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_BLE_GATT)
-#  include <arch/chip/bk7258_ble_gatt.h>
-#endif
 #ifdef CONFIG_BK7258_AP_CORE
 #  include <arch/chip/bk7258_radio_mode.h>
 #endif
@@ -483,44 +480,12 @@ static int bk7258_bt_test_execute(uint32_t operation,
                                   uint32_t scan_duration_ms,
                                   struct bk7258_bt_test_result_s *result)
 {
-#ifdef CONFIG_BK7258_BLE_GATT
-  struct bk7258_ble_gatt_stats_s gatt;
-#endif
   int socket_fd;
   int ret;
 
   if (operation == BK7258_BT_TEST_OPERATION_STATS)
     {
       ret = bk7258_bt_hci_get_stats(&result->hci);
-#ifdef CONFIG_BK7258_BLE_GATT
-      if (ret >= 0)
-        {
-          ret = bk7258_ble_gatt_get_stats(&gatt);
-        }
-
-      if (ret >= 0)
-        {
-          result->gatt.state = gatt.state > UINT8_MAX ?
-                               UINT8_MAX : (uint8_t)gatt.state;
-          result->gatt.worker_cpu = gatt.worker_cpu > UINT8_MAX ?
-                                    UINT8_MAX : (uint8_t)gatt.worker_cpu;
-          result->gatt.last_error = gatt.last_error > INT16_MAX ?
-                                    INT16_MAX :
-                                    gatt.last_error < INT16_MIN ?
-                                    INT16_MIN : (int16_t)gatt.last_error;
-          result->gatt.connected = gatt.connected > UINT16_MAX ?
-                                   UINT16_MAX : (uint16_t)gatt.connected;
-          result->gatt.disconnected = gatt.disconnected > UINT16_MAX ?
-                                      UINT16_MAX :
-                                      (uint16_t)gatt.disconnected;
-          result->gatt.readvertised = gatt.readvertised > UINT16_MAX ?
-                                      UINT16_MAX :
-                                      (uint16_t)gatt.readvertised;
-          result->gatt.queue_full = gatt.queue_full > UINT16_MAX ?
-                                    UINT16_MAX :
-                                    (uint16_t)gatt.queue_full;
-        }
-#endif
       return ret;
     }
 

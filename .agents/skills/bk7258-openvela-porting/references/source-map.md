@@ -29,17 +29,16 @@
 
 ## 本项目源码所有权
 
-- `board/bk7258-r1/`：本队 R1 板级源码，是工作区
-  `vendor/beken/boards/bk7258/bk7258-r1/` 的来源。
-- `porting/nuttx/arch/arm/src/bk7258/`：本队维护的芯片层文件镜像；当前基于
-  `8dbe907a8461c3b6b5ceddf3c0fcf7a690df1ffd`，仅增加学习注释。
+- `boards/bk7258/aidk_ai_toy/`：本队 R1 板级源码及 CP/AP 配置。
+- `chips/bk7258/`：当前 CP/AP 双核芯片层实现。
+- `nuttx/`：本 BSP 所需的 NuttX 覆盖文件。
 - `app/vision_badge/`：本队应用源码；不得直接依赖 ARMINO 私有应用接口。
 - `beken_reference/`：只存在于本机完整工作区的厂商 SDK/手册参考，不进入比赛
   仓库，也不因本地存在而成为已验证的 OpenVela 能力。
 
-构建前使用 `scripts/sync-openvela-port.sh --check` 证明队伍仓和完整工作区一致。
-若在工作区底层源码中学习和修改，使用 `--capture` 采集后必须审查差异；若从
-队伍仓恢复工作区，使用 `--install`。同步动作不是构建或实机证据。
+构建前使用 `python3 tools/bk7258/bk7258.py verify layers` 和
+`python3 tools/bk7258/bk7258.py verify layout --partition boards/bk7258/aidk_ai_toy/bk7258_ab_fixed_block_full_release.csv`
+检查终版源码分层与地址布局。VM 构建和实机证据需另行记录。
 
 ## 使用公开 PR 前
 
