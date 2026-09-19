@@ -1,6 +1,6 @@
 # BK7258 R1 全 OpenVela 适配与多模态能力验证
 
-> 2026 首届 openvela AI 硬件开发者大赛 · 队伍 441 · 新硬件平台适配
+> 2026 首届 openvela AI 硬件开发者大赛 · 不知道叫什么名字（队伍 441）· 邢晓亮 · 新硬件平台适配
 
 本项目面向 BK7258 R1（AIDK AI Toy）开发板，重点完成一条可追溯的全
 OpenVela/NuttX 板级适配链路：物理 CPU0 运行 CP 侧 NuttX，物理 CPU1 与
@@ -18,7 +18,7 @@ CPU2 共同运行 AP 侧 SMP NuttX，并通过 Mailbox、共享内存和 RPTUN/R
 
 ## 当前结论
 
-截至 2026-09-16：
+截至 2026-09-19：
 
 - CPU0-only OpenVela 已在本队 R1 实机启动到 NSH；
 - 全 OpenVela 实验镜像已取得 AP READY、RPTUN CONNECTED、CPU2 SMP PASSED
@@ -29,8 +29,9 @@ CPU2 共同运行 AP 侧 SMP NuttX，并通过 Mailbox、共享内存和 RPTUN/R
   `7079493e73159e00c1b03e60bee6ee69845751cd` 为基线整合到本仓，并剔除其产品
   应用、云端、模型、UI 和凭据；
 - 新增本队 CP/AP 配置和 `apctl`、`bkwifi` 诊断命令；
-- 终版候选 BSP 尚需在 Linux 工作区完成干净编译，再由本队 R1 实机回归。未通过
-  这两道门禁前，不把它写成“终版已验证”。
+- r14 已在指定 Ubuntu VM 构建，并由本队 R1 实机完成 KEY1 拍照识别、MiMo 中文结果
+  返回和双屏原厂样式眼睛动画验证。两次保存的视觉查询均为 `stage=done status=0`；
+  语音识别与播报未纳入本次提交成果。
 
 ## 系统结构
 
@@ -53,7 +54,7 @@ BK7258
 
 ```text
 app/bsp_diag/                 AP/RPTUN/SMP 与 Wi-Fi 诊断命令
-app/vision_badge/             历史产品功能与接口，终版 BSP 稳定后再接回
+app/vision_badge/             KEY1/NSH 拍照、MiMo 查询、跨核结果返回
 chips/bk7258/                 BK7258 CPU0/AP/CPU2、IRQ、SysTick、RPTUN 等
 boards/bk7258/                通用板级层、R1 板级层、CP/AP 配置和分区
 nuttx/                        本 BSP 所需的 NuttX 覆盖文件
@@ -69,9 +70,10 @@ submission/                   官方模板、正文草案和报告候选稿
 在完整 openvela Linux 工作区中执行：
 
 ```bash
-cd /home/alientek/openvela/contest2026_441_buzhidaojiaoshenmemingzi
+cd /home/alientek/ov441_ws/team-repo
 python3 tools/bk7258/bk7258.py build \
-  --board aidk_ai_toy --boot direct --jobs 8
+  --board aidk_ai_toy --boot direct --jobs 8 \
+  --workspace /home/alientek/ov441_ws
 ```
 
 构建工具会分别处理 CP/AP 配置，校验两侧拓扑与内存布局，并生成带来源和哈希的
@@ -93,14 +95,16 @@ python3 tools/bk7258/bk7258.py build \
 
 ## 比赛提交材料
 
-- 官方模板报告候选稿：`submission/技术报告-终版候选.docx`
-- 同内容预览：`submission/技术报告-终版候选.pdf`
+- 按官方模板填写的技术报告：`submission/技术报告-BK7258-R1-视觉辅助胸牌.docx`
+- 同内容 PDF：`submission/技术报告-BK7258-R1-视觉辅助胸牌.pdf`
 - 可审查正文：`submission/技术报告正文草案.md`
+- r14 构建、烧录与串口证据：`evidence/final/`
+- 硬件正面照片：`submission/硬件照片.jpg`
 - AI Coding 日志：`logs/xxluestc/`
 - 自建 Skill：`.agents/skills/bk7258-openvela-porting/`
 
-报告中的性能、功耗和稳定性只填写有测试方法和原始日志的数据。最终提交前仍需
-补齐终版构建哈希、开发板回归结果、成员信息和真机照片。
+报告中的性能、功耗和稳定性只填写有测试方法和原始日志的数据。提交压缩包还需加入
+不超过 5 分钟的演示视频；报告、照片与源码由本仓提供。
 
 ## 安全与许可证
 

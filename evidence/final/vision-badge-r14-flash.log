@@ -1,0 +1,318 @@
+cmdline: |G:\CIE\BK_Tool\BEKEN_BKFIL_V2.1.11.15_20241114\bk_loader.exe download -p 12 -b 115200 --uart-type CH340 --mainBin-multi G:/CIE/R1/firmware/vision-badge-20260919-r14/cp.bin@0x11000-0xe0cb2,G:/CIE/R1/firmware/vision-badge-20260919-r14/pair.bin@0x2ca000-0x2b9000 --reboot 1 --fast-link 1 |
+bk_loader version 2.1.11.15: build @Nov 14 2024 19:17:41
+2026-09-19 19:43:14.549    Current port : COM12 + BaudRate : 115200 connect success
+2026-09-19 19:43:14.549    do_reset_signal
+2026-09-19 19:43:14.549    Getting Bus...
+2026-09-19 19:43:15.554    Getting Bus...
+2026-09-19 19:43:16.166    Gotten Bus...
+2026-09-19 19:43:16.175    Current Chip is : BK7236
+2026-09-19 19:43:16.544    [ 0 ] Read the last not aligned 4K data, align startAddr : 0x000f1000
+2026-09-19 19:43:16.544    Read  successfully
+2026-09-19 19:43:16.572    Current baudrate : 115200 success
+2026-09-19 19:43:16.572    Unprotecting Flash
+2026-09-19 19:43:16.615    Unprotected Flash ->pass
+2026-09-19 19:43:16.615    [ 0 ] file_startAddr : 0x00011000
+2026-09-19 19:43:16.615    [ 0 ] file_path : G:/CIE/R1/firmware/vision-badge-20260919-r14/cp.bin
+2026-09-19 19:43:16.615    [ 0 ] file_length : 0xe0d00 (899 KB)
+2026-09-19 19:43:16.615    [ 0 ] file_crc : 0xa729a3ad
+2026-09-19 19:43:16.615    Begin EraseFlash
+2026-09-19 19:43:16.615    Start 4K Erase
+2026-09-19 19:43:18.219    End 4K Erase
+2026-09-19 19:43:18.219    Start 64K Erase
+Erasing Flash ... 13%
+Erasing Flash ... 19%
+Erasing Flash ... 26%
+Erasing Flash ... 33%
+Erasing Flash ... 39%
+Erasing Flash ... 46%
+Erasing Flash ... 53%
+Erasing Flash ... 59%
+Erasing Flash ... 66%
+Erasing Flash ... 73%
+Erasing Flash ... 79%
+Erasing Flash ... 86%
+Erasing Flash ... 92%
+Erasing Flash ... 99%
+2026-09-19 19:43:20.916    End 64K Erase
+2026-09-19 19:43:20.916    Handling file end
+2026-09-19 19:43:21.342    Last 4K CRC_Verify ->pass
+2026-09-19 19:43:21.342    Handled file end
+2026-09-19 19:43:21.342    EraseFlash ->pass
+2026-09-19 19:43:21.344    [ 1 ] file_startAddr : 0x002ca000
+2026-09-19 19:43:21.344    [ 1 ] file_path : G:/CIE/R1/firmware/vision-badge-20260919-r14/pair.bin
+2026-09-19 19:43:21.344    [ 1 ] file_length : 0x2b9000 (2788 KB)
+2026-09-19 19:43:21.344    [ 1 ] file_crc : 0x94e4cf63
+2026-09-19 19:43:21.344    Begin EraseFlash
+2026-09-19 19:43:21.344    Start 4K Erase
+2026-09-19 19:43:21.941    End 4K Erase
+2026-09-19 19:43:21.941    Start 64K Erase
+Erasing Flash ... 51%
+Erasing Flash ... 52%
+Erasing Flash ... 53%
+Erasing Flash ... 54%
+Erasing Flash ... 55%
+Erasing Flash ... 56%
+Erasing Flash ... 57%
+Erasing Flash ... 58%
+Erasing Flash ... 60%
+Erasing Flash ... 61%
+Erasing Flash ... 62%
+Erasing Flash ... 63%
+Erasing Flash ... 64%
+Erasing Flash ... 65%
+Erasing Flash ... 66%
+Erasing Flash ... 68%
+Erasing Flash ... 69%
+Erasing Flash ... 70%
+Erasing Flash ... 71%
+Erasing Flash ... 72%
+Erasing Flash ... 73%
+Erasing Flash ... 74%
+Erasing Flash ... 75%
+Erasing Flash ... 77%
+Erasing Flash ... 78%
+Erasing Flash ... 79%
+Erasing Flash ... 80%
+Erasing Flash ... 81%
+Erasing Flash ... 82%
+Erasing Flash ... 83%
+Erasing Flash ... 85%
+Erasing Flash ... 86%
+Erasing Flash ... 87%
+Erasing Flash ... 88%
+Erasing Flash ... 89%
+Erasing Flash ... 90%
+Erasing Flash ... 91%
+Erasing Flash ... 92%
+Erasing Flash ... 94%
+Erasing Flash ... 95%
+Erasing Flash ... 96%
+Erasing Flash ... 97%
+Erasing Flash ... 98%
+Erasing Flash ... 99%
+Erasing Flash ... 99%
+Erasing Flash ... 99%
+2026-09-19 19:43:28.390    End 64K Erase
+2026-09-19 19:43:28.390    EraseFlash ->pass
+2026-09-19 19:43:28.400    [ 0 ] Begin write to flash...
+Writing Flash ... 0%
+Writing Flash ... 1%
+Writing Flash ... 2%
+Writing Flash ... 3%
+Writing Flash ... 4%
+Writing Flash ... 5%
+Writing Flash ... 6%
+Writing Flash ... 7%
+Writing Flash ... 8%
+Writing Flash ... 9%
+Writing Flash ... 10%
+Writing Flash ... 11%
+Writing Flash ... 12%
+Writing Flash ... 13%
+Writing Flash ... 14%
+Writing Flash ... 15%
+Writing Flash ... 16%
+Writing Flash ... 17%
+Writing Flash ... 18%
+Writing Flash ... 19%
+Writing Flash ... 20%
+Writing Flash ... 21%
+Writing Flash ... 22%
+Writing Flash ... 23%
+Writing Flash ... 24%
+Writing Flash ... 25%
+Writing Flash ... 26%
+Writing Flash ... 27%
+Writing Flash ... 28%
+Writing Flash ... 29%
+Writing Flash ... 30%
+Writing Flash ... 31%
+Writing Flash ... 32%
+Writing Flash ... 33%
+Writing Flash ... 34%
+Writing Flash ... 35%
+Writing Flash ... 36%
+Writing Flash ... 37%
+Writing Flash ... 38%
+Writing Flash ... 39%
+Writing Flash ... 40%
+Writing Flash ... 41%
+Writing Flash ... 42%
+Writing Flash ... 43%
+Writing Flash ... 44%
+Writing Flash ... 45%
+Writing Flash ... 46%
+Writing Flash ... 47%
+Writing Flash ... 48%
+Writing Flash ... 49%
+Writing Flash ... 50%
+Writing Flash ... 51%
+Writing Flash ... 52%
+Writing Flash ... 53%
+Writing Flash ... 54%
+Writing Flash ... 55%
+Writing Flash ... 56%
+Writing Flash ... 57%
+Writing Flash ... 58%
+Writing Flash ... 59%
+Writing Flash ... 60%
+Writing Flash ... 61%
+Writing Flash ... 62%
+Writing Flash ... 63%
+Writing Flash ... 64%
+Writing Flash ... 65%
+Writing Flash ... 66%
+Writing Flash ... 67%
+Writing Flash ... 68%
+Writing Flash ... 69%
+Writing Flash ... 70%
+Writing Flash ... 71%
+Writing Flash ... 72%
+Writing Flash ... 73%
+Writing Flash ... 74%
+Writing Flash ... 75%
+Writing Flash ... 76%
+Writing Flash ... 77%
+Writing Flash ... 78%
+Writing Flash ... 79%
+Writing Flash ... 80%
+Writing Flash ... 81%
+Writing Flash ... 82%
+Writing Flash ... 83%
+Writing Flash ... 84%
+Writing Flash ... 85%
+Writing Flash ... 86%
+Writing Flash ... 87%
+Writing Flash ... 88%
+Writing Flash ... 89%
+Writing Flash ... 90%
+Writing Flash ... 91%
+Writing Flash ... 92%
+Writing Flash ... 93%
+Writing Flash ... 94%
+Writing Flash ... 95%
+Writing Flash ... 96%
+Writing Flash ... 97%
+Writing Flash ... 98%
+Writing Flash ... 99%
+2026-09-19 19:44:52.249    WriteFlash ->pass
+2026-09-19 19:44:52.249    [ 1 ] Begin write to flash...
+Writing Flash ... 0%
+Writing Flash ... 1%
+Writing Flash ... 2%
+Writing Flash ... 3%
+Writing Flash ... 4%
+Writing Flash ... 5%
+Writing Flash ... 6%
+Writing Flash ... 7%
+Writing Flash ... 8%
+Writing Flash ... 9%
+Writing Flash ... 10%
+Writing Flash ... 11%
+Writing Flash ... 12%
+Writing Flash ... 13%
+Writing Flash ... 14%
+Writing Flash ... 15%
+Writing Flash ... 16%
+Writing Flash ... 17%
+Writing Flash ... 18%
+Writing Flash ... 19%
+Writing Flash ... 20%
+Writing Flash ... 21%
+Writing Flash ... 22%
+Writing Flash ... 23%
+Writing Flash ... 24%
+Writing Flash ... 25%
+Writing Flash ... 26%
+Writing Flash ... 27%
+Writing Flash ... 28%
+Writing Flash ... 29%
+Writing Flash ... 30%
+Writing Flash ... 31%
+Writing Flash ... 32%
+Writing Flash ... 33%
+Writing Flash ... 34%
+Writing Flash ... 35%
+Writing Flash ... 36%
+Writing Flash ... 37%
+Writing Flash ... 38%
+Writing Flash ... 39%
+Writing Flash ... 40%
+Writing Flash ... 41%
+Writing Flash ... 42%
+Writing Flash ... 43%
+Writing Flash ... 44%
+Writing Flash ... 45%
+Writing Flash ... 46%
+Writing Flash ... 47%
+Writing Flash ... 48%
+Writing Flash ... 49%
+Writing Flash ... 50%
+Writing Flash ... 51%
+Writing Flash ... 52%
+Writing Flash ... 53%
+Writing Flash ... 54%
+Writing Flash ... 55%
+Writing Flash ... 56%
+Writing Flash ... 57%
+Writing Flash ... 58%
+Writing Flash ... 59%
+Writing Flash ... 60%
+Writing Flash ... 61%
+Writing Flash ... 62%
+Writing Flash ... 63%
+Writing Flash ... 64%
+Writing Flash ... 65%
+Writing Flash ... 66%
+Writing Flash ... 67%
+Writing Flash ... 68%
+Writing Flash ... 69%
+Writing Flash ... 70%
+Writing Flash ... 71%
+Writing Flash ... 72%
+Writing Flash ... 73%
+Writing Flash ... 74%
+Writing Flash ... 75%
+Writing Flash ... 76%
+Writing Flash ... 77%
+Writing Flash ... 78%
+Writing Flash ... 79%
+Writing Flash ... 80%
+Writing Flash ... 81%
+Writing Flash ... 82%
+Writing Flash ... 83%
+Writing Flash ... 84%
+Writing Flash ... 85%
+Writing Flash ... 86%
+Writing Flash ... 87%
+Writing Flash ... 88%
+Writing Flash ... 89%
+Writing Flash ... 90%
+Writing Flash ... 91%
+Writing Flash ... 92%
+Writing Flash ... 93%
+Writing Flash ... 94%
+Writing Flash ... 95%
+Writing Flash ... 96%
+Writing Flash ... 97%
+Writing Flash ... 98%
+Writing Flash ... 99%
+2026-09-19 19:47:30.212    WriteFlash ->pass
+2026-09-19 19:47:30.288    Enprotect pass
+2026-09-19 19:47:30.341    Boot_Reboot
+
+2026-09-19 19:47:30.371    Total Test Time : 254.204 s
+2026-09-19 19:47:30.371    Writing Flash OK                             
+
+2026-09-19 19:47:30.371    
+
+==============================================================
+
+     _             (done)
+    | |                 
+  __| | ___  _ __   ___ 
+ / _  |/ _ \|  _ \ / _ \
+| (_| | (_) | | | |  __/
+ \__,_|\___/|_| |_|\___|
+{All Finished Successfully}
+

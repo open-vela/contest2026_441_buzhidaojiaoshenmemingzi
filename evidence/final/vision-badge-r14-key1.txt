@@ -1,0 +1,7 @@
+[  552.500219] [17] [  INFO] [cp] VISION BADGE KEY1 short press; starting capture
+[  552.620313] [CPU0] [31] [  INFO] [ap] [hal] 
+[  552.620500] [CPU0] [31] [  INFO] [ap] gpio: 27 is used.Please confirm unmap isn't impact is working module.!
+[  559.020782] [17] [  INFO] [cp] VISION BADGE KEY1 request status=0 stage=4
+vision_badge: 一位戴眼镜的年轻男子，耳朵里塞着白色耳机，正对着镜头。
+[  558.669313] [CPU0] [31] [  INFO] [ap] VISION BADGE QUERY stage=done jpeg=21099 answer=81
+[  558.669813] [CPU0] [31] [  INFO] [ap] VISION BADGE RPC sequence=4 stage=4 status=0

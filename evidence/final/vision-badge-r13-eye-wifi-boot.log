@@ -1,0 +1,252 @@
+reboot
+u_bootloader enter
+BClk A5=8407A76C A9=787BC8A4 M1=00000033 M2=05000000
+jump to:0x02010000
+JMP
+[    0.000000] [ 0] [  INFO] [cp] [hal] 
+[    0.000000] [ 0] [  INFO] [cp] [gpio_log]:gpio:11 was busy: device num:0x1f!
+[    0.000000] [ 0] [  INFO] [cp] [hal] 
+[    0.000000] [ 0] [  INFO] [cp] gpio: 11 is used.Please confirm unmap isn't impact is working module.!
+[    0.000000] [ 0] [  INFO] [cp] [hal] 
+[    0.000000] [ 0] [  INFO] [cp] [gpio_log]:gpio:10 was busy: device num:0x20!
+[    0.000000] [ 0] [  INFO] [cp] [hal] 
+[    0.000000] [ 0] [  INFO] [cp] gpio: 10 is used.Please confirm unmap isn't impact is working module.!
+[    0.000000] [ 0] [  INFO] [cp] [hal] 
+[    0.000000] [ 0] [  INFO] [cp] [gpio_log]:gpio:11 was busy: device num:0x1f!
+[    0.057188] [ 2] [  INFO] [cp] rwnx_cal_set_rfconfig(0x102) phy on; rf off
+[    0.067219] [ 2] [  INFO] [cp] [cal] 
+[    0.067500] [ 2] [  INFO] [cp] load polar tab magic code error 0xffffffff
+[    0.073813] [ 2] [  INFO] [cp] [cal] 
+[    0.077375] [ 2] [  INFO] [cp] get rfcali_mode:1
+[    0.085625] [ 2] [  INFO] [cp] [cal] 
+[    0.085875] [ 2] [  INFO] [cp] cali bias(f)
+[    0.093875] [ 2] [  INFO] [cp] [cal] 
+[    0.094125] [ 2] [  INFO] [cp] temp in otp is:568
+[    0.098157] [ 2] [  INFO] [cp] [cal] 
+[    0.101688] [ 2] [  INFO] [cp] temp_code=31,dmodldosel=4,Dgmdc=7
+[    0.127813] [ 2] [  INFO] [cp] [cal] 
+[    0.128094] [ 2] [  INFO] [cp] retry_count=4,dlypc_i=2,stateI=[0,60,30,0],dlypc_q=2,stateQ=[0,59,26,0]
+[    0.210625] [ 2] [  INFO] [cp] [cal] 
+[    0.210907] [ 2] [  INFO] [cp] cali bias(f)
+[    0.211625] [ 2] [  INFO] [cp] [cal] 
+[    0.211875] [ 2] [  INFO] [cp] calibration_main(1f1862c) over
+[    0.216688] [ 2] [  INFO] [cp] [cal] 
+[    0.220032] [ 2] [  INFO] [cp] rf cali flag in flash: valid
+[    0.225750] [ 2] [  INFO] [cp] flash txpwr table:0xf
+[    0.231282] [ 2] [  INFO] [cp] [cal] 
+[    0.234125] [ 2] [  INFO] [cp] load polar tab magic code error 0xffffffff
+[    0.241750] [ 2] [  INFO] [cp] xtal_cali:34
+[    0.245094] [ 2] [  INFO] [cp] [cal] 
+[    0.248657] [ 2] [  INFO] [cp] --init_xtal = 34
+[    0.253282] [ 2] [  INFO] [cp] [cal] 
+[    0.256813] [ 2] [  INFO] [cp] gtx_dcorPA=0xe->0xe
+[    0.261688] [ 2] [  INFO] [cp] [cal] 
+[    0.265188] [ 2] [  INFO] [cp] -----pwr_gain:40, rate=54, g_idx:40, shift_b:0, shift_g:0
+[    0.273344] [ 2] [  INFO] [cp] [cal] 
+[    0.276875] [ 2] [  INFO] [cp] idx:40=40+(0),r:54,xtal:34,pwr_gain:9cab7128
+[    0.285907] [ 2] [  INFO] [cp] [wifi] 
+[    0.287532] [ 2] [  INFO] [cp] wifi inited(1) ret(0)
+[    0.295750] [ 2] [  INFO] [cp] BSDK SRAM HEAP PASS size=16384
+[    0.298188] [ 2] [  INFO] [cp] BPSR SYSTEM HEAP PASS size=98304
+[    0.304094] [ 2] [  INFO] [cp] BPSR BOOT PASS id=8d08 config=8d1a capacity=16777216 heap=60700000+131072 raw=0/0 mpu=1
+[    0.333438] [ 8] [  INFO] [cp] [cal] 
+[    0.334094] [ 8] [  INFO] [cp] temp_code:30 - adc_code:545 - adc_trend:[13]:568->[14]:545
+[    0.008625] [CPU0] [ 5] [NOTICE] [ap] BPSR AP SYSTEM HEAP base=60800000 size=4194304
+[    0.413219] [12] [  INFO] [cp] cif_handle_bk_cmd_get_mac_addr_req
+[    0.413844] [12] [  INFO] [cp] base mac: c8:47:8c:fe:b8:bf
+[    0.081032] [CPU0] [ 5] [  INFO] [ap] [WDRV] 
+[    0.081219] [CPU0] [ 5] [  INFO] [ap] wdrv_tx_cmd_buffer_init, addr[0]=0x28052830, pattern_addr=0x2805282c
+[    0.082032] [CPU0] [ 5] [  INFO] [ap] [WDRV] 
+[    0.082375] [CPU0] [ 5] [  INFO] [ap] wdrv_tx_cmd_buffer_init, addr[1]=0x28052b50, pattern_addr=0x28052b4c
+[    0.083094] [CPU0] [ 5] [  INFO] [ap] [WDRV] 
+[    0.083219] [CPU0] [ 5] [  INFO] [ap] wdrv_tx_cmd_buffer_init, addr[2]=0x28052e70, pattern_addr=0x28052e6c
+[    0.094219] [CPU0] [ 5] [  INFO] [ap] [hal] 
+[    0.094375] [CPU0] [ 5] [  INFO] [ap] gpio: 20 is used.Please confirm unmap isn't impact is working module.!
+[    0.094750] [CPU0] [ 5] [  INFO] [ap] [hal] 
+[    0.094844] [CPU0] [ 5] [  INFO] [ap] gpio: 21 is used.Please confirm unmap isn't impact is working module.!
+[    0.098875] [CPU0] [ 5] [  INFO] [ap] BDAC BOOT PASS board=AIDK AI Toy dev=/dev/audio/pcm0p rate=16000 frame=640 queue=8 pa=P50 active=high
+[    0.110438] [CPU0] [ 5] [  INFO] [ap] AIDK DEFERRED SCHEDULED pid=14 priority=80
+[    0.111250] [CPU0] [14] [  INFO] [ap] AIDK DEFERRED START
+[    0.111625] [CPU0] [14] [  INFO] [ap] AIDK DEFERRED stage=sdio-enter
+[    0.112594] [CPU0] [14] [  INFO] [ap] BSDIO stage=lower-enter
+[    0.113063] [CPU0] [14] [  INFO] [ap] BKSDIO INIT stage=prepare-enter wide=4
+[    0.114719] [CPU0] [14] [  INFO] [ap] [hal] 
+[    0.115094] [CPU0] [14] [  INFO] [ap] gpio: 52 is used.Please confirm unmap isn't impact is working module.!
+[    0.130157] [CPU0] [14] [  INFO] [ap] BKSDIO INIT stage=prepare-pass elapsed=20 ms
+[    0.130407] [CPU0] [14] [  INFO] [ap] BKSDIO INIT stage=driver-enter
+[    0.131000] [CPU0] [14] [  INFO] [ap] BKSDIO INIT stage=driver-pass elapsed=20 ms
+[    0.131219] [CPU0] [14] [  INFO] [ap] BKSDIO INIT stage=host-enter width=1
+BK7258 SYSINIT PASS
+[    0.583125] [18] [  INFO] [cp] BK7258 FINALINIT PASS
+BK7258 RCS PASS
+
+NuttShell (NSH)
+nsh> [K[    0.251032] [CPU0] [14] [  INFO] [ap] BKSDIO TX DMA channel=0 RX=cpu-fifo
+[    0.283688] [CPU0] [14] [  INFO] [ap] BKSDIO INIT PASS width=1 elapsed=170 ms
+[    0.283938] [CPU0] [14] [  INFO] [ap] BSDIO stage=lower-pass elapsed=170 ms
+[    0.284125] [CPU0] [14] [  INFO] [ap] BSDIO stage=mmcsd-enter slot=0
+[    0.850719] [CPU0] [14] [  INFO] [ap] BKSDIO TX DMA channel=0 RX=cpu-fifo
+[    0.900782] [CPU0] [14] [  INFO] [ap] BSDIO BOOT PASS slot=0 elapsed=790 ms
+[    0.901000] [CPU0] [14] [  INFO] [ap] AIDK DEFERRED stage=sdio-pass elapsed=790 ms
+[    0.901188] [CPU0] [14] [  INFO] [ap] AIDK DEFERRED stage=lcd-enter
+[    1.030782] [CPU0] [14] [  INFO] [ap] [gpio] 
+[    1.030969] [CPU0] [14] [  INFO] [ap] GPIO5 not found in GPIO_DEFAULT_DEV_CONFIG table
+[    1.031375] [CPU0] [14] [  INFO] [ap] [hal] 
+[    1.031500] [CPU0] [14] [  INFO] [ap] gpio: 6 is used.Please confirm unmap isn't impact is working module.!
+[    1.031875] [CPU0] [14] [  INFO] [ap] [hal] 
+[    1.032032] [CPU0] [14] [  INFO] [ap] gpio: 7 is used.Please confirm unmap isn't impact is working module.!
+[    1.032375] [CPU0] [14] [  INFO] [ap] [gpio] 
+[    1.032532] [CPU0] [14] [  INFO] [ap] GPIO5 not found in GPIO_DEFAULT_DEV_CONFIG table
+[    1.033125] [CPU0] [14] [  INFO] [ap] [hal] 
+[    1.033282] [CPU0] [14] [  INFO] [ap] gpio: 45 is used.Please confirm unmap isn't impact is working module.!
+[    1.033563] [CPU0] [14] [  INFO] [ap] [gpio] 
+[    1.033719] [CPU0] [14] [  INFO] [ap] GPIO5 not found in GPIO_DEFAULT_DEV_CONFIG table
+[    1.033938] [CPU0] [14] [  INFO] [ap] [err] 
+[    1.034063] [CPU0] [14] [  INFO] [ap] lcd_spi_device_gpio_init 119: ret=-0x200e
+[    1.270375] [CPU0] [14] [  INFO] [ap] [lcd_spi_drv] 
+[    1.270563] [CPU0] [14] [  INFO] [ap] bk_lcd_spi_init[1] is complete
+[    1.640750] [CPU0] [14] [  INFO] [ap] AIDK GC9D01 panel ready fb=0 spi=1 dc=P5 reset=P45
+[    1.760969] [CPU0] [14] [  INFO] [ap] [hal] 
+[    1.761188] [CPU0] [14] [  INFO] [ap] gpio: 23 is used.Please confirm unmap isn't impact is working module.!
+[    1.761594] [CPU0] [14] [  INFO] [ap] [hal] 
+[    1.761750] [CPU0] [14] [  INFO] [ap] gpio: 22 is used.Please confirm unmap isn't impact is working module.!
+[    1.762157] [CPU0] [14] [  INFO] [ap] [hal] 
+[    1.762282] [CPU0] [14] [  INFO] [ap] gpio: 24 is used.Please confirm unmap isn't impact is working module.!
+[    1.762719] [CPU0] [14] [  INFO] [ap] [hal] 
+[    1.762875] [CPU0] [14] [  INFO] [ap] gpio: 26 is used.Please confirm unmap isn't impact is working module.!
+[    1.763250] [CPU0] [14] [  INFO] [ap] [hal] 
+[    1.763407] [CPU0] [14] [  INFO] [ap] gpio: 27 is used.Please confirm unmap isn't impact is working module.!
+[    1.764250] [CPU0] [14] [  INFO] [ap] [hal] 
+[    1.764375] [CPU0] [14] [  INFO] [ap] gpio: 6 is used.Please confirm unmap isn't impact is working module.!
+[    1.764782] [CPU0] [14] [  INFO] [ap] [hal] 
+[    1.764907] [CPU0] [14] [  INFO] [ap] gpio: 7 is used.Please confirm unmap isn't impact is working module.!
+[    2.000282] [CPU0] [14] [  INFO] [ap] [lcd_spi_drv] 
+[    2.000469] [CPU0] [14] [  INFO] [ap] bk_lcd_spi_init[0] is complete
+[    2.370750] [CPU0] [14] [  INFO] [ap] AIDK GC9D01 panel ready fb=1 spi=0 dc=P7 reset=P6
+[    2.386219] [CPU0] [14] [  INFO] [ap] AIDK LCD BOOT PASS panel=GC9D01 size=160x160 dev=/dev/fb0,/dev/fb1 backlight=P25 shared ldo=P52
+[    2.386469] [CPU0] [14] [  INFO] [ap] AIDK DEFERRED stage=lcd-pass elapsed=2270 ms
+[    2.386657] [CPU0] [14] [  INFO] [ap] AIDK DEFERRED stage=camera-enter
+[    2.386844] [CPU0] [14] [  INFO] [ap] AIDK GC2145 memory plan: frames=2 frame=102400 encode=20480 align=32
+[    2.387313] [CPU0] [14] [  INFO] [ap] AIDK GC2145 registered: /dev/video0 640x480@30 MJPEG
+[    2.387563] [CPU0] [14] [  INFO] [ap] AIDK DEFERRED stage=camera-pass elapsed=2270 ms
+[    2.387750] [CPU0] [14] [  INFO] [ap] AIDK DEFERRED stage=bsp-selftest-enter
+[    2.388500] [CPU0] [14] [  INFO] [ap] AIDK LCD DATA PASS panels=2 pixels=8
+[    2.770407] [CPU0] [14] [  INFO] [ap] [hal] 
+[    2.770594] [CPU0] [14] [  INFO] [ap] gpio: 27 is used.Please confirm unmap isn't impact is working module.!
+[    3.172157] [CPU0] [14] [  INFO] [ap] AIDK BSP CAMERA FORMAT 640x480 fourcc=0x4745504a sizeimage=0
+[    3.172375] [CPU0] [14] [  INFO] [ap] AIDK BSP CAMERA BUFFER source=nuttx-jpeg-default bytes=307200
+[    3.311469] [CPU0] [14] [  INFO] [ap] AIDK BSP CAMERA DATA PASS bytes=23939
+[    3.421063] [CPU0] [14] [  INFO] [ap] AIDK BSP SD DATA using raw block node; partition node absent
+[    3.803625] [CPU0] [14] [  INFO] [ap] AIDK BSP SD DATA PASS
+[    3.803844] [CPU0] [14] [  INFO] [ap] AIDK BSP SELFTEST PASS failures=0
+[    3.804032] [CPU0] [14] [  INFO] [ap] AIDK DEFERRED stage=bsp-selftest-pass elapsed=3690 ms
+[    4.411438] [CPU0] [25] [  INFO] [ap] AIDK EYE START vendor dual-eye animation
+[    4.526344] [CPU0] [14] [  INFO] [ap] AIDK EYE SCHEDULED pid=25 source=vendor-genie-eye
+[    4.529438] [CPU0] [14] [  INFO] [ap] AIDK DEFERRED stage=vision-rpc-pass
+[    4.533157] [CPU0] [14] [  INFO] [ap] AIDK DEFERRED DONE failures=0 elapsed=4420 ms
+[    5.134844] [12] [  INFO] [cp] [ef] 
+[    5.135125] [12] [  INFO] [cp] ENV isn't initialize OK.
+[    5.150063] [10] [  INFO] [cp] [wifid] 
+[    5.150407] [10] [  INFO] [cp] mm_add_if_req: vif_idx=0, type=0, p2p=0, status=0
+[    5.162844] [11] [  INFO] [cp] [wpa] 
+[    5.163125] [11] [  INFO] [cp] State: DISCONNECTED -> INACTIVE
+[    5.163625] [11] [  INFO] [cp] [wpa] 
+[    5.164563] [11] [  INFO] [cp] State: INACTIVE -> DISCONNECTED
+[    5.170500] [11] [  INFO] [cp] [lwip] 
+[    5.174094] [11] [  INFO] [cp] mac c8:47:8c:fe:b8:bf
+[    5.181063] [12] [  INFO] [cp] [ef] 
+[    5.182563] [12] [  INFO] [cp] ENV isn't initialize OK.
+[    5.188000] [11] [  INFO] [cp] [wpa] 
+[    5.191407] [11] [  INFO] [cp] Setting scan request: 0.000000 sec
+[    5.198282] [11] [  INFO] [cp] [wpa] 
+[    5.201094] [11] [  INFO] [cp] State: DISCONNECTED -> SCANNING
+[    5.404969] [ 8] [  INFO] [cp] [cal] 
+[    5.405313] [ 8] [  INFO] [cp] retry_count=5,dlypc_i=2,stateI=[0,0,29,0],dlypc_q=2,stateQ=[0,0,28,0]
+[    5.406532] [ 8] [  INFO] [cp] [cal] 
+[    5.410063] [ 8] [  INFO] [cp] temp_code:33 - adc_code:531 - adc_trend:[14]:545->[15]:522
+[    6.924032] [10] [  INFO] [cp] [wifid] 
+[    6.924375] [10] [  INFO] [cp] [KW:]scanu_confirm:status=0,req_type=0,upload_cnt=10,recv_cnt=87,time=1714578us,result=1,rfcli=1
+[    6.928813] [11] [  INFO] [cp] [wpa] 
+[    6.931594] [11] [  INFO] [cp] Scan completed in 1.710000 seconds
+[    6.937813] [11] [  INFO] [cp] [hitf] 
+[    6.941375] [11] [  INFO] [cp] get scan result:1
+[    6.947532] [11] [  INFO] [cp] [wpa] 
+[    6.949594] [11] [  INFO] [cp] State: SCANNING -> ASSOCIATING
+[    6.957407] [10] [  INFO] [cp] [wifid] 
+[    6.959125] [10] [  INFO] [cp] chan_ctxt_add: CTXT0,freq2417MHz,bw20MHz,pwr127dBm
+[    6.966688] [10] [  INFO] [cp] [wifid] 
+[    6.970375] [10] [  INFO] [cp] chan_reg_fix:VIF0,CTXT0,type3,ctxt_s0,nb_vif0
+[    6.979094] [10] [  INFO] [cp] [wifid] 
+[    6.981188] [10] [  INFO] [cp] mm_sta_add:vif 0,sta 0,status 0
+[    7.032938] [10] [  INFO] [cp] [wifid] 
+[    7.033250] [10] [  INFO] [cp] [KW:]auth_send:seq1, txtype0, auth_type0, seq46
+[    7.066688] [10] [  INFO] [cp] [wifid] 
+[    7.066969] [10] [  INFO] [cp] [KW:]sm_auth_handler: status code 0, tx status 0x80800000
+[    7.067782] [10] [  INFO] [cp] [wifid] 
+[    7.071000] [10] [  INFO] [cp] [KW:]assoc_req_send:is ht, seq_num:47
+[    7.150438] [10] [  INFO] [cp] [wifid] 
+[    7.150719] [10] [  INFO] [cp] [KW:]assoc_rsp:status0,tx_s0x80800000
+[    7.151813] [10] [  INFO] [cp] [wifid] 
+[    7.153032] [10] [  INFO] [cp] [KW:]mm_set_vif_state,vif=0,vif_type=0,is_active=1, aid=0x2,rssi=-33
+[    7.165500] [11] [  INFO] [cp] [wpa] 
+[    7.166625] [11] [  INFO] [cp] State: ASSOCIATING -> ASSOCIATED
+[    7.173813] [11] [  INFO] [cp] [wpa] 
+[    7.175188] [11] [  INFO] [cp] State: ASSOCIATED -> 4WAY_HANDSHAKE
+[    7.182657] [11] [  INFO] [cp] [wpa] 
+[    7.184969] [11] [  INFO] [cp] WPA: TK 0x2803f870b
+[    7.208157] [11] [  INFO] [cp] [wpa] 
+[    7.208469] [11] [  INFO] [cp] State: 4WAY_HANDSHAKE -> 4WAY_HANDSHAKE
+[    7.212469] [11] [  INFO] [cp] [hitf] 
+[    7.212782] [11] [  INFO] [cp] add CCMP
+[    7.215219] [11] [  INFO] [cp] [wpa] 
+[    7.218125] [11] [  INFO] [cp] State: 4WAY_HANDSHAKE -> GROUP_HANDSHAKE
+[    7.224875] [11] [  INFO] [cp] [hitf] 
+[    7.228407] [11] [  INFO] [cp] add CCMP
+[    7.232875] [11] [  INFO] [cp] [wpa] 
+[    7.235875] [11] [  INFO] [cp] State: GROUP_HANDSHAKE -> COMPLETED
+[    7.243032] [11] [  INFO] [cp] [ef] 
+[    7.245563] [11] [  INFO] [cp] ENV isn't initialize OK.
+[    7.251375] [11] [  INFO] [cp] [ef] 
+[    7.254282] [11] [  INFO] [cp] ENV isn't initialize OK.
+[    7.259532] [11] [  INFO] [cp] [ef] 
+[    7.263032] [11] [  INFO] [cp] ENV isn't initialize OK.
+[    7.268500] [ 6] [  INFO] [cp] [lwip] 
+[    7.271938] [ 6] [  INFO] [cp] sta ip start
+[    7.276407] [ 6] [  INFO] [cp] [lwip] 
+[    7.279813] [ 6] [  INFO] [cp] [KW:]sta:DHCP_DISCOVER()
+[    7.297625] [ 7] [  INFO] [cp] [lwip] 
+[    7.297938] [ 7] [  INFO] [cp] [KW:]sta:DHCP_OFFER received in DHCP_STATE_SELECTING state
+[    7.298469] [ 7] [  INFO] [cp] [lwip] 
+[    7.301875] [ 7] [  INFO] [cp] [KW:]sta:DHCP_REQUEST(netif=0x28011b40) en   1
+[    7.333125] [ 7] [  INFO] [cp] [lwip] 
+[    7.333438] [ 7] [  INFO] [cp] [KW:]sta:DHCP_ACK received
+[    7.335500] [10] [  INFO] [cp] [wifid] 
+[    7.335782] [10] [  INFO] [cp] [KW:]me dhcp done vif:0
+[    7.342000] [ 7] [  INFO] [cp] cif_bk_send_event
+[    7.344469] [ 7] [  INFO] [cp] [ef] 
+[    7.347938] [ 7] [  INFO] [cp] ENV isn't initialize OK.
+[    7.353188] [ 7] [  INFO] [cp] [ef] 
+[    7.356657] [ 7] [  INFO] [cp] ENV isn't initialize OK.
+[    7.361938] [ 7] [  INFO] [cp] [ef] 
+[    7.365407] [ 7] [  INFO] [cp] ENV isn't initialize OK.
+[    7.374188] [ 6] [  INFO] [cp] [event] 
+[    7.374469] [ 6] [  INFO] [cp] event <2 0> has no cb
+[    7.030094] [CPU0] [11] [  INFO] [ap] [event] 
+[    7.030594] [CPU0] [11] [  INFO] [ap] event <1 2> has no cb
+[    7.200969] [CPU0] [36] [ ERROR] [ap] MIMO CLOCK stage=tls-handshake ret=-82
+[    7.202875] [CPU0] [36] [  WARN] [ap] VISION BADGE network warmup attempt=1 ret=-82
+[    8.470438] [ 8] [  INFO] [cp] [cal] 
+[    8.470750] [ 8] [  INFO] [cp] temp_code:30 - adc_code:543 - adc_trend:[15]:522->[14]:545
+[    8.471438] [ 8] [  INFO] [cp] [cal] 
+[    8.474532] [ 8] [  INFO] [cp] -----pwr_gain:51, rate=54, g_idx:51, shift_b:0, shift_g:0
+[    8.482657] [ 8] [  INFO] [cp] [cal] 
+[    8.486219] [ 8] [  INFO] [cp] idx:51=51+(0),r:54,xtal:33,pwr_gain:9cab7197
+[   12.553938] [ 8] [  INFO] [cp] [cal] 
+[   12.554282] [ 8] [  INFO] [cp] temp_code:32 - adc_code:532 - adc_trend:[14]:545->[15]:522
+[   13.594157] [CPU0] [36] [  INFO] [ap] VISION BADGE network session ready
+[   14.590500] [ 8] [  INFO] [cp] [cal] 
+[   14.590844] [ 8] [  INFO] [cp] temp_code:30 - adc_code:543 - adc_trend:[15]:522->[14]:545
+[   14.591532] [ 8] [  INFO] [cp] [cal] 
+[   14.594625] [ 8] [  INFO] [cp] -----pwr_gain:51, rate=54, g_idx:51, shift_b:0, shift_g:0
+[   14.602938] [ 8] [  INFO] [cp] [cal] 
+[   14.606313] [ 8] [  INFO] [cp] idx:51=51+(0),r:54,xtal:33,pwr_gain:9cab7197

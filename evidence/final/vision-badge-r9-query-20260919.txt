@@ -1,0 +1,9 @@
+# r9 COM12 capture 09/19/2026 14:57:15
+vision_badge run "描述前方画面"
+[  306.650313] [CPU0] [31] [  INFO] [ap] [hal] 
+[  306.650500] [CPU0] [31] [  INFO] [ap] gpio: 27 is used.Please confirm unmap isn't impact is working module.!
+vision_badge: 前方是天花板，有方形格栅和长条形灯具，左侧墙面有深色通风口。
+nsh> [K
+nsh> [K[  311.365282] [CPU0] [31] [  INFO] [ap] VISION BADGE QUERY stage=done jpeg=20095 answer=90
+[  311.365750] [CPU0] [31] [  INFO] [ap] VISION BADGE RPC sequence=2 stage=4 status=0
+

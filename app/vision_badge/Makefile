@@ -10,15 +10,24 @@ STACKSIZE =
 MAINSRC   =
 MODULE    = y
 
-CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/packages/demos/contest2026_441_vision_badge/include
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/system/contest2026_441_vision_badge/include
 
 ifneq ($(CONFIG_LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE),)
 PROGNAME  += vision_badge
 PRIORITY  += 100
 STACKSIZE += $(CONFIG_CONTEST2026_441_VISION_BADGE_STACKSIZE)
 MAINSRC   += src/vision_badge_main.c
-CSRCS   = src/workflow.c src/camera_service.c src/vision_service.c
-CSRCS  += src/audio_service.c src/feedback_service.c
+CSRCS     = src/workflow.c src/camera_service.c src/mimo_request.c
+CSRCS    += src/http_date.c src/vision_service.c src/mimo_http.c
+CSRCS    += src/vision_badge_rpc.c src/audio_service.c src/feedback_service.c
+endif
+
+ifneq ($(CONFIG_LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE_CLIENT),)
+PROGNAME  += vision_badge
+PRIORITY  += 100
+STACKSIZE += 4096
+MAINSRC   += src/vision_badge_client_main.c
+CSRCS     += src/vision_badge_rpc.c
 endif
 
 ifneq ($(CONFIG_LVX_USE_DEMO_CONTEST2026_441_R1_KEYLED),)

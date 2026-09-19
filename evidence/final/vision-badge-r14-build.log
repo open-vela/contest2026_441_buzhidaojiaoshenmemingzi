@@ -1,0 +1,47 @@
+LIBCLANG_PATH set to: /home/alientek/ov441_ws/prebuilts/rust/linux/extra_libs
+including vendor/beken/boards/bk7258/build/vendorsetup.sh
+custom CMake binary dir: /home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/cp/bk7258-role-48e4b6e830ce7952/cmake
+ lunch .//out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/configs/direct/cp /home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/cp/bk7258-role-48e4b6e830ce7952/cmake 
+The current build configuration lunched with: [32m[nuttx]-[configs]-[cp]![0m
+
+[32m#### BINARY directory is set: /home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/cp/bk7258-role-48e4b6e830ce7952/cmake[0m
+
+  cmake --build /home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/cp/bk7258-role-48e4b6e830ce7952/cmake -j8  --
+[0/2] Re-checking globbed directories...
+[1/7] cd /home/alientek/ov441_ws/nuttx && /usr/bin/cmake -DKCONFIG_CONFIG=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/configs/direct/cp/defconfig -DNUTTX_DIR=/home/alientek/ov441_ws/nuttx -DCMAKE_BINARY_DIR=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/cp/bk7258-role-48e4b6e830ce7952/cmake -P /home/alientek/ov441_ws/nuttx/cmake/nuttx_generate_dts.cmake
+[2/7] Generating bin output directories
+[3/7] Building C object apps/system/contest2026_441_vision_badge/CMakeFiles/apps_vision_badge.dir/src/vision_badge_rpc.c.o
+[4/7] Linking C static library apps/system/contest2026_441_vision_badge/libapps_vision_badge.a
+[5/7] Linking C executable nuttx
+[6/7] Generating nuttx.bin
+[7/7] Generating System.map
+
+#### build completed successfully (3 seconds) ####
+LIBCLANG_PATH set to: /home/alientek/ov441_ws/prebuilts/rust/linux/extra_libs
+including vendor/beken/boards/bk7258/build/vendorsetup.sh
+custom CMake binary dir: /home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/ap/bk7258-role-bacf0051d3fdc156/cmake
+ lunch .//out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/configs/direct/ap /home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/ap/bk7258-role-bacf0051d3fdc156/cmake 
+The current build configuration lunched with: [32m[nuttx]-[configs]-[ap]![0m
+
+[32m#### BINARY directory is set: /home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/ap/bk7258-role-bacf0051d3fdc156/cmake[0m
+
+  cmake --build /home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/ap/bk7258-role-bacf0051d3fdc156/cmake -j8  --
+[0/2] Re-checking globbed directories...
+[1/2] cd /home/alientek/ov441_ws/nuttx && /usr/bin/cmake -DKCONFIG_CONFIG=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/configs/direct/ap/defconfig -DNUTTX_DIR=/home/alientek/ov441_ws/nuttx -DCMAKE_BINARY_DIR=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/ap/bk7258-role-bacf0051d3fdc156/cmake -P /home/alientek/ov441_ws/nuttx/cmake/nuttx_generate_dts.cmake
+[2/2] Generating bin output directories
+
+#### build completed successfully  ####
+bk7258 layer gate: PASS sources=343 kconfig=251 legacy-exceptions=2
+bk7258 build: PASS layout=bk7258-34dfff5891ff2b05
+bl1 elf=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/releases/direct/bl1/bl.elf bin=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/releases/direct/bl1/bl.bin map=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/releases/direct/bl1/bl.map
+cp elf=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/cp/bk7258-role-48e4b6e830ce7952/cmake/nuttx bin=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/cp/bk7258-role-48e4b6e830ce7952/cmake/nuttx.bin map=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/cp/bk7258-role-48e4b6e830ce7952/cmake/nuttx.map identity=bk7258-role-48e4b6e830ce7952 seed=9e2d2dfacacffe2270821dabba162c67935eb72d003e5fb9c44813016d554760 config=c044a0dec1d495c1a96ebe3668867f36695ba68b31477731beffe53ea5df1b10
+ap elf=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/ap/bk7258-role-bacf0051d3fdc156/cmake/nuttx bin=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/ap/bk7258-role-bacf0051d3fdc156/cmake/nuttx.bin map=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/roles/direct/ap/bk7258-role-bacf0051d3fdc156/cmake/nuttx.map identity=bk7258-role-bacf0051d3fdc156 seed=4855fbd673b54f3665efbf920dabbe42a5f8ed08ecef94318f5ed82833ec71ca config=bab9aaa9278c5538ec82762a41977dd142a45d1c604bfb5ab448d40ac9b70aeb
+image boot=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/releases/direct/images/boot.bin size=3808 sha256=c87852b82ead29ee09cccc0bc4dba2b940206af50d0e0bb580146fe80f9be659
+image cp=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/releases/direct/images/cp.bin size=920754 sha256=4c8e59ef078b1b762d27d06a8dd3917b44dcc698604f1b45e6efc7f40a95e178
+image ap=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/releases/direct/images/ap.bin size=813858 sha256=4533cf69e6d12cb15257f290bbaeae38b8502a78a6629f108e003a668ce50cdc
+image pair=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/releases/direct/images/pair.bin size=2854912 sha256=20f1b1687b067c0c5e0f85d0ad3f2a6dc0f947cdee93df4e7bd62058be8423bb
+preserve external=bl2_a
+preserve external=bl2_b
+preserve external=manifest_a
+preserve external=manifest_b
+build manifest=/home/alientek/ov441_ws/out/bk7258/aidk_ai_toy/team441_cp__team441_ap/bk7258-34dfff5891ff2b05/releases/direct/build-manifest.json

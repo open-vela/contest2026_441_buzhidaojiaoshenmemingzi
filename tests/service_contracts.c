@@ -52,7 +52,7 @@ int main(void)
   assert(vision_badge_run_once(&context, "", &image, &result) == -EINVAL);
   assert(context.stage == VISION_BADGE_STAGE_IDLE);
   assert(vision_badge_run_once(&context, "test", &image, &result) == -ENOSYS);
-  assert(context.stage == VISION_BADGE_STAGE_CAPTURE);
+  assert(context.stage == VISION_BADGE_STAGE_ERROR);
   assert(context.last_error == -ENOSYS);
   assert(image.size == 0);
 

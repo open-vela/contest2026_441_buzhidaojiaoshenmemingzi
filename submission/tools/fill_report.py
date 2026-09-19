@@ -87,10 +87,17 @@ def main() -> None:
     document = Document(TEMPLATE)
     sections = markdown_sections(DRAFT.read_text(encoding="utf-8"))
 
+    set_paragraph_text(document.paragraphs[0], "BK7258 R1 视觉辅助胸牌 OpenVela 技术报告")
+    document.paragraphs[0].runs[0].font.size = Pt(20)
+    document.paragraphs[0].runs[0].bold = True
+    for section in document.sections:
+        for paragraph in section.header.paragraphs:
+            paragraph.clear()  # Remove the template's unrelated picture watermark.
+
     info = document.tables[2]
-    info.cell(1, 1).text = "OpenVela R1 全栈适配与多模态能力验证"
-    info.cell(2, 1).text = "队伍 441"
-    info.cell(3, 1).text = "xxluestc（负责人）：BSP 移植、驱动适配、构建烧录、真机验证与材料整理"
+    info.cell(1, 1).text = "BK7258 R1 视觉辅助胸牌 OpenVela"
+    info.cell(2, 1).text = "不知道叫什么名字（队伍编号 441）"
+    info.cell(3, 1).text = "邢晓亮（GitHub：xxluestc）：BSP 移植、驱动适配、构建烧录、实机验证、应用与报告整理"
     info.cell(4, 1).text = "新硬件平台适配"
 
     abstract = sections.get("2. 摘要") or sections.get("2、摘要")
@@ -111,11 +118,11 @@ def main() -> None:
         fill_section(document, prefix, body, next_prefix)
 
     ai = document.tables[3]
-    ai.cell(1, 1).text = "待最终分支统计；不以估算值代替可追溯结果"
-    ai.cell(2, 1).text = "Codex、MiMo Code；AI 负责检索、起草和审查，硬件结论由实机验证"
-    ai.cell(3, 1).text = "使用本地代码、终端和浏览器工具；未把未验证的 MCP 能力写入成果"
-    ai.cell(4, 1).text = "自建 bk7258-openvela-porting Skill；用于来源审查、分层、构建与证据门禁"
-    ai.cell(5, 1).text = "官方日志已归集 3 个文件、76 条事件并通过校验；总 Token 无可靠统计时不虚构"
+    ai.cell(1, 1).text = "未建立逐行归因口径，不填虚构百分比"
+    ai.cell(2, 1).text = "Codex、MiMo Code、本地终端、源码检索与文档处理"
+    ai.cell(3, 1).text = "未使用 VelaJS MCP 或 Figma MCP"
+    ai.cell(4, 1).text = "bk7258-openvela-porting；用于来源审查、分层、构建与证据门禁，12 项测试通过"
+    ai.cell(5, 1).text = "日志 3 个会话、76 条事件；无 Token 字段，未虚构总量"
 
     for table in (info, ai):
         for row in table.rows:
@@ -126,7 +133,14 @@ def main() -> None:
                         run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
                         run.font.size = Pt(10.5)
 
-    document.core_properties.title = "OpenVela R1 全栈适配与多模态能力验证"
+    # The repository and PR rules are already stated in the report.  Drop the
+    # template's duplicate final notice so it does not create a one-line page.
+    for paragraph in document.paragraphs:
+        if paragraph.text.strip().startswith("大赛仅在 GitHub 进行"):
+            paragraph._element.getparent().remove(paragraph._element)
+            break
+
+    document.core_properties.title = "BK7258 R1 视觉辅助胸牌 OpenVela"
     document.core_properties.subject = "2026 首届 OpenVela AI 硬件开发者大赛技术报告"
     document.save(OUTPUT)
     print(OUTPUT)

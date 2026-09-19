@@ -2,8 +2,9 @@
 # Contest 2026 team 441 vision badge - Make.defs
 ############################################################################
 
-ifneq ($(CONFIG_LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE),)
-CONFIGURED_APPS += $(APPDIR)/packages/demos/contest2026_441_vision_badge
+ifneq ($(filter y,$(CONFIG_LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE) \
+                    $(CONFIG_LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE_CLIENT)),)
+CONFIGURED_APPS += $(APPDIR)/system/contest2026_441_vision_badge
 else ifneq ($(CONFIG_LVX_USE_DEMO_CONTEST2026_441_R1_KEYLED),)
-CONFIGURED_APPS += $(APPDIR)/packages/demos/contest2026_441_vision_badge
+CONFIGURED_APPS += $(APPDIR)/system/contest2026_441_vision_badge
 endif

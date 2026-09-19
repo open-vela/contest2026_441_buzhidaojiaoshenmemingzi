@@ -35,6 +35,8 @@ board_repo="$repo_dir/board/bk7258-r1"
 board_workspace="$workspace_dir/vendor/beken/boards/bk7258/bk7258-r1"
 chip_repo="$repo_dir/porting/nuttx/arch/arm/src/bk7258"
 chip_workspace="$workspace_dir/nuttx/arch/arm/src/bk7258"
+app_repo="$repo_dir/app/vision_badge"
+app_workspace="$workspace_dir/apps/system/contest2026_441_vision_badge"
 
 board_files='
 .gitignore
@@ -73,6 +75,34 @@ chip.h
 hardware/bk7258_memorymap.h
 hardware/bk7258_gpio.h
 hardware/bk7258_uart.h
+'
+
+app_files='
+CMakeLists.txt
+Kconfig
+Make.defs
+Makefile
+README.md
+include/vision_badge/config.h
+include/vision_badge/http_date.h
+include/vision_badge/mimo_http.h
+include/vision_badge/mimo_request.h
+include/vision_badge/rpc.h
+include/vision_badge/services.h
+include/vision_badge/types.h
+include/vision_badge/workflow.h
+src/audio_service.c
+src/camera_service.c
+src/feedback_service.c
+src/http_date.c
+src/mimo_http.c
+src/mimo_request.c
+src/r1_keyled_main.c
+src/vision_badge_main.c
+src/vision_badge_client_main.c
+src/vision_badge_rpc.c
+src/vision_service.c
+src/workflow.c
 '
 
 failed=0
@@ -120,11 +150,15 @@ if test "$mode" = --capture; then
   board_to=$board_repo
   chip_from=$chip_workspace
   chip_to=$chip_repo
+  app_from=$app_workspace
+  app_to=$app_repo
 else
   board_from=$board_repo
   board_to=$board_workspace
   chip_from=$chip_repo
   chip_to=$chip_workspace
+  app_from=$app_repo
+  app_to=$app_workspace
 fi
 
 for relative in $board_files; do
@@ -133,6 +167,10 @@ done
 
 for relative in $chip_files; do
   sync_file "$chip_from" "$chip_to" "$relative"
+done
+
+for relative in $app_files; do
+  sync_file "$app_from" "$app_to" "$relative"
 done
 
 if test "$failed" -ne 0; then

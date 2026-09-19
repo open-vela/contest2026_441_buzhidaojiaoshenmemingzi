@@ -374,4 +374,51 @@ int bk7258_aidk_dual_lcd_data_selftest(void)
   return OK;
 }
 
+/* Product-facing row update used by the eye animation.  Keep the panel
+ * ownership and framebuffer callback lookup in this board binding so the
+ * application does not depend on private LCD driver structures. */
+
+int bk7258_aidk_dual_lcd_pair_putrun(unsigned int row,
+                                     FAR const uint16_t *left,
+                                     FAR const uint16_t *right,
+                                     size_t npixels)
+{
+  FAR const uint16_t *pixels[2] = {left, right};
+  unsigned int index;
+
+  if (row >= BK7258_BOARD_LCD_HEIGHT || left == NULL || right == NULL ||
+      npixels == 0 || npixels > BK7258_BOARD_LCD_WIDTH)
+    {
+      return -EINVAL;
+    }
+
+  for (index = 0; index < nitems(g_aidk_lcd_panels); index++)
+    {
+      FAR struct aidk_lcd_panel_s *panel = &g_aidk_lcd_panels[index];
+      struct lcd_planeinfo_s plane;
+      int ret;
+
+      if (panel->lcddev == NULL || panel->lcddev->getplaneinfo == NULL)
+        {
+          return -ENODEV;
+        }
+
+      memset(&plane, 0, sizeof(plane));
+      ret = panel->lcddev->getplaneinfo(panel->lcddev, 0, &plane);
+      if (ret < 0 || plane.putrun == NULL)
+        {
+          return ret < 0 ? ret : -ENOSYS;
+        }
+
+      ret = plane.putrun(plane.dev, row, 0,
+                         (FAR const uint8_t *)pixels[index], npixels);
+      if (ret < 0)
+        {
+          return ret;
+        }
+    }
+
+  return OK;
+}
+
 #endif /* CONFIG_BK7258_AIDK_DUAL_LCD */

@@ -45,6 +45,12 @@
 该项目由 repo manifest 固定，只作为 BK7258 芯片库和硬件接口依赖。终版禁止
 从其他开发板复制 EasyFlash、RF 校准、MAC、配对或用户分区。
 
+本队双屏眼睛动画位于 `boards/bk7258/aidk_ai_toy/src/bk7258_aidk_eye.c`。
+`bk7258_aidk_eye_assets.c` 是从旧版 R1 产品使用的 Beken `genie_eye.avi` 帧
+转换出的 RGB565 调色板和像素数据，恢复时记录的源文件 SHA256 在资产文件头。
+动画调度、双屏绘制和状态反馈已适配本次全 OpenVela BSP；资产不是来自参考队伍
+135 的产品应用。
+
 ## 3. BSP 诊断命令
 
 `app/bsp_diag/apctl_main.c` 和 `bkwifi_main.c` 分别派生自上述主参考提交的：

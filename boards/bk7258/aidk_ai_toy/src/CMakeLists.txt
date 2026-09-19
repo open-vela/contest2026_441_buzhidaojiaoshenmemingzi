@@ -84,5 +84,8 @@ if(CONFIG_BK7258_AIDK_BATTERY)
 endif()
 
 if(CONFIG_BK7258_AIDK_DUAL_LCD)
-  target_sources(board PRIVATE bk7258_aidk_dual_lcd.c)
+  target_sources(board PRIVATE
+      bk7258_aidk_dual_lcd.c
+      bk7258_aidk_eye.c
+      bk7258_aidk_eye_assets.c)
 endif()
