@@ -32,7 +32,7 @@ for path in \
   "$workspace_dir/build.sh" \
   "$workspace_dir/nuttx" \
   "$workspace_dir/vendor/beken/boards/bk7258/bk7258-r1" \
-  "$workspace_dir/packages/demos/contest2026_441_vision_badge"; do
+  "$workspace_dir/apps/system/contest2026_441_vision_badge"; do
   if test -e "$path"; then
     printf '[ok]   %s\n' "$path"
   else

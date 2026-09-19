@@ -1,0 +1,6 @@
+vision_badge run "描述前方画面"
+[  449.500313] [CPU0] [31] [  INFO] [ap] [hal] 
+[  449.500532] [CPU0] [31] [  INFO] [ap] gpio: 27 is used.Please confirm unmap isn't impact is working module.!
+vision_badge: 前方有绿色灯光照射的天花板和墙壁，右侧有网格状结构。
+nsh> [K[  456.566563] [CPU0] [31] [  INFO] [ap] VISION BADGE QUERY stage=done jpeg=17527 answer=78
+[  456.567063] [CPU0] [31] [  INFO] [ap] VISION BADGE RPC sequence=3 stage=4 status=0

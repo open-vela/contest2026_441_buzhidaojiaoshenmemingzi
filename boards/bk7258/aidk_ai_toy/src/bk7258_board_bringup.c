@@ -43,6 +43,10 @@ extern int bk7258_aidk_battery_initialize(void);
 #endif
 #ifdef CONFIG_BK7258_AIDK_DUAL_LCD
 extern int bk7258_aidk_dual_lcd_initialize(void);
+extern int bk7258_aidk_eye_initialize(void);
+#endif
+#ifdef CONFIG_LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE
+extern int vision_badge_rpc_initialize(void);
 #endif
 static const struct bk7258_mic_config_s g_bk7258_aidk_mic_config =
 {
@@ -334,6 +338,28 @@ static int bk7258_aidk_deferred_worker(int argc, FAR char *argv[])
       syslog(LOG_INFO,
              "AIDK DEFERRED stage=bsp-selftest-pass elapsed=%lu ms\n",
              (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
+    }
+#endif
+
+#ifdef CONFIG_BK7258_AIDK_DUAL_LCD
+  ret = bk7258_aidk_eye_initialize();
+  if (ret < 0)
+    {
+      failures++;
+      syslog(LOG_ERR, "AIDK DEFERRED stage=eye-fail ret=%d\n", ret);
+    }
+#endif
+
+#ifdef CONFIG_LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE
+  ret = vision_badge_rpc_initialize();
+  if (ret < 0)
+    {
+      failures++;
+      syslog(LOG_ERR, "AIDK DEFERRED stage=vision-rpc-fail ret=%d\n", ret);
+    }
+  else
+    {
+      syslog(LOG_INFO, "AIDK DEFERRED stage=vision-rpc-pass\n");
     }
 #endif
 

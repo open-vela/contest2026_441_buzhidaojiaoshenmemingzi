@@ -26,4 +26,17 @@ int bk7258_aidk_motor_set(bool enable);
 int bk7258_aidk_motor_capture_quiet(bool quiet);
 #endif
 
+#ifdef CONFIG_BK7258_AIDK_DUAL_LCD
+enum bk7258_aidk_eye_state_e
+{
+  BK7258_AIDK_EYE_IDLE = 0,
+  BK7258_AIDK_EYE_CAPTURE,
+  BK7258_AIDK_EYE_QUERY,
+  BK7258_AIDK_EYE_DONE,
+  BK7258_AIDK_EYE_ERROR,
+};
+
+int bk7258_aidk_eye_set_state(enum bk7258_aidk_eye_state_e state);
+#endif
+
 #endif

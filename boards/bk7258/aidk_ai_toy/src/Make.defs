@@ -47,5 +47,5 @@ CSRCS += bk7258_aidk_battery.c
 endif
 
 ifeq ($(CONFIG_BK7258_AIDK_DUAL_LCD),y)
-CSRCS += bk7258_aidk_dual_lcd.c
+CSRCS += bk7258_aidk_dual_lcd.c bk7258_aidk_eye.c bk7258_aidk_eye_assets.c
 endif

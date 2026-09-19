@@ -30,6 +30,13 @@
 int bk7258_board_buttons_initialize(void);
 #endif
 
+#ifdef CONFIG_LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE_CLIENT
+int vision_badge_rpc_initialize(void);
+#  ifdef CONFIG_BK7258_AIDK_BUTTONS
+int vision_badge_rpc_buttons_start(void);
+#  endif
+#endif
+
 /****************************************************************************
  * Private Data
  ****************************************************************************/
@@ -47,6 +54,18 @@ static int bk7258_cp_bringup_run(void)
   bool eligible;
 #endif
   int ret;
+
+#ifdef CONFIG_LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE_CLIENT
+  /* Register before the AP is released so its endpoint name announcement
+   * cannot race the first user command on the CPU0 NSH.
+   */
+
+  ret = vision_badge_rpc_initialize();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
 
 #if defined(CONFIG_BK7258_OTA) || \
     defined(CONFIG_BK7258_WDT_PRETIMEOUT_PANIC) || \
@@ -118,6 +137,15 @@ static int bk7258_cp_bringup_run(void)
     {
       return ret;
     }
+#  ifdef CONFIG_LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE_CLIENT
+#    ifdef CONFIG_BK7258_AIDK_BUTTONS
+  ret = vision_badge_rpc_buttons_start();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#    endif
+#  endif
 #endif
 
   return 0;

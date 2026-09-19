@@ -1,11 +1,15 @@
 config LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE
 	bool "Contest 2026 team 441 vision assistance badge"
 	default n
+	depends on BK7258_AP_CORE
+	select BUILTIN
+	select CRYPTO_MBEDTLS
+	select NETUTILS_CJSON
+	select NETUTILS_WEBCLIENT
 	---help---
-		Enable the BK7258 R1 vision assistance badge application skeleton.
-		The initial version provides module contracts and diagnostics. Camera,
-		cloud vision, audio and vibration backends are completed milestone by
-		milestone and must not be treated as verified by enabling this option.
+		Enable the BK7258 R1 vision assistance badge application. The camera
+		backend captures one JPEG frame and the vision backend can send it to
+		MiMo when a key is present on the mounted SD-NAND volume.
 
 if LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE
 
@@ -31,7 +35,32 @@ config CONTEST2026_441_VISION_BADGE_RESULT_BUFFER_SIZE
 	default 32768
 	range 4096 65536
 
+config CONTEST2026_441_VISION_BADGE_MIMO_API_KEY_PATH
+	string "MiMo API key file"
+	default "/mnt/sdnand/prov/mimo_api_key"
+	help
+		Plain-text MiMo API key. The application also accepts the existing
+		VSWP provisioning records at prov/wifi.bin and prov/vela.cfg. The key
+		is read at request time and is never compiled in.
+
+config CONTEST2026_441_VISION_BADGE_MIMO_STORAGE_DEVICE
+	string "MiMo credential storage block device"
+	default "/dev/mmcsd0"
+	help
+		Removable block device used when the SD-NAND mount point is not already
+		mounted. The application tries the partition node first when present.
+
 endif
+
+config LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE_CLIENT
+	bool "Contest 2026 team 441 vision badge CP command"
+	default n
+	depends on BK7258_RPTUN && !BK7258_AP_CORE && SYSTEM_NSH
+	select BUILTIN
+	select NSH_BUILTIN_APPS
+	help
+		Expose the vision_badge command on the CPU0 NSH. Requests are sent to
+		the AP camera and MiMo service over a bounded RPMsg endpoint.
 
 config LVX_USE_DEMO_CONTEST2026_441_R1_KEYLED
 	bool "Contest 2026 team 441 R1 key/LED test"

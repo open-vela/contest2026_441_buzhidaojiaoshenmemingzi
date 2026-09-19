@@ -39,13 +39,14 @@ static int vision_badge_status(void)
   camera_service_probe(&camera);
   audio_service_probe(&audio);
 
-  printf("vision_badge foundation 0.1.0\n");
+  printf("vision_badge openvela 0.2.0\n");
   printf("board: BK7258 R1 / openvela\n");
   vision_badge_print_probe("camera", CONFIG_CONTEST2026_441_VISION_BADGE_CAMERA_DEVPATH,
                            &camera);
   vision_badge_print_probe("audio", CONFIG_CONTEST2026_441_VISION_BADGE_AUDIO_DEVPATH,
                            &audio);
-  printf("cloud    pending  MiMo adapter is not implemented\n");
+  printf("cloud    ready    MiMo HTTPS; key=%s\n",
+         CONFIG_CONTEST2026_441_VISION_BADGE_MIMO_API_KEY_PATH);
   printf("feedback console  enabled; audio/vibration pending\n");
   return 0;
 }

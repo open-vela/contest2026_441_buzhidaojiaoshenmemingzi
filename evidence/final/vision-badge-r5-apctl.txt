@@ -1,0 +1,24 @@
+apctl status
+AP state=READY(2) error=0 generation=1 heartbeat=11380
+AP core local=0 physical=1 VTOR(init/run)=02130000/28050800 MSP(init/run)=28050800/28050800
+AP clock=120000000 SysTick ctrl/load/current=00000003/0000013f/0000002c
+AP heap=2806a300..280967fc test=2806b4e8 doorbells cp/ap=0/0
+RPTUN state=CONNECTED(4) error=0 generation=1 flags=00007f3f
+RPTUN pending cp/ap=00000000/00000000 heartbeat cp/ap=4724/11380 epoch cp/ap=1/1
+RPTUN rx sequence cp/ap=4853/4849
+AP supervisor state=HEALTHY(2) reason=NONE(0) generation=1 flags=0000001f
+Supervisor heartbeat primary/secondary=11379/11380 age=0/0 ms transport seq/age=0/260 ms healthy/sample=1251270/60 ms sample_sequence=4725
+Supervisor faults/recoveries/consecutive=0/0/0 injection=NONE(0) last_error=0
+CPU2 state=SCHEDULER_ONLINE(8) error=0 generation=1 heartbeat=11381
+CPU2 core local=1 physical=2 vector=02130200 VTOR=02130200 MSP(init/run)=28097000/28097000
+CPU2 control=00000006 SYS(before/after)=00000038/02130231
+CPU2 bootstrap entry=02130a11 idle=2806a860..2806b048 ready=1 online=00000003 calls=12659 boots=1
+AP IPI state=READY(2) error=0 generation=1 requested=0 completed=0 runs=0
+IPI 0->1 tx/rx/pending=0/0/0 seq=0/0 dup/lost/fail=0/0/0
+IPI 1->0 tx/rx/pending=0/0/0 seq=0/0 dup/lost/fail=0/0/0
+IPI irq/wake cpu0=1259/1259 cpu1=11400/11400 stale/spurious=0/0
+AP SMP state=PASSED(4) error=0 generation=1 online=00000003 boots=1 runs=1 requested/completed=2/2
+SMP tx/rx cpu0=11400/1259 cpu1=1259/11400 coalesced=0/0 fail=0/0
+SMP handler call/delivered cpu0=1259/1259 cpu1=11400/11400 callbacks=1/1 lastcpu=0
+SMP SysTick cpu0/cpu1=125182/0 sleep enter/return=11380/11379
+nsh> [K
