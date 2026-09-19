@@ -35,9 +35,6 @@
 #ifdef CONFIG_BK7258_RPTUN_MBOX
 #  include <arch/chip/bk7258_rptun.h>
 #endif
-#ifdef CONFIG_BK7258_BLE_GATT
-#  include <arch/chip/bk7258_ble_gatt.h>
-#endif
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -74,11 +71,6 @@
 
 #define BK7258_BT_STATUS_UNSUPPORTED     0x11u
 #define BK7258_BT_HOST_BUFFER_EVENT_SIZE 7u
-
-#if defined(CONFIG_BK7258_BLE_GATT) && \
-    !defined(CONFIG_BLUETOOTH_CNTRL_HOST_FLOW_DISABLE)
-#  error "BK7258 N13 requires Controller-to-Host flow control disabled"
-#endif
 
 #if defined(CONFIG_BK7258_BT_HOST_BUFFER_SIZE_COMPAT) && \
     !defined(CONFIG_BLUETOOTH_CNTRL_HOST_FLOW_DISABLE)
@@ -633,17 +625,6 @@ static void bk7258_bt_sdk_receive(uint8_t *buffer, uint16_t length)
       __atomic_fetch_add(&priv->stats.receive_errors, 1u,
                          __ATOMIC_RELAXED);
     }
-#ifdef CONFIG_BK7258_BLE_GATT
-  else if (type == BT_EVT)
-    {
-      /* bt_netdev_receive() has synchronously copied the SDK-owned H4 event.
-       * The observer only copies a fixed lifecycle token and never replaces
-       * stock Host processing.
-       */
-
-      bk7258_ble_gatt_hci_event(buffer, length);
-    }
-#endif
 }
 
 static int bk7258_bt_open(struct bt_driver_s *driver)

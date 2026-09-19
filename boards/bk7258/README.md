@@ -48,9 +48,8 @@ This boundary is executable, not documentation-only.  The maintainer CLI runs
 `verify layers` before every build and the host regression runs its negative
 fixtures.  New board/app SDK calls, chip-to-board dependencies, cross-role
 Kconfig nesting and chip-owned product GATT/UUID policy stop the build before
-configuration.  The two historical N13 GATT files are exact-hash exceptions;
-they remain disabled in the AIDK profile and any edit forces a fresh ownership
-review.
+configuration.  The unrelated N13 product GATT service was removed from this
+team submission.
 
 `board_late_initialize()` is a `void` NuttX hook, so it retains the initial
 diagnostic shell after a mandatory CP failure. This is not a degraded

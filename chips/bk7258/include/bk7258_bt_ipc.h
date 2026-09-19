@@ -145,10 +145,9 @@ struct bk7258_bt_hci_stats_s
 static_assert(sizeof(struct bk7258_bt_hci_stats_s) == 336u,
               "BK7258 Bluetooth HCI stats ABI changed");
 
-/* The RPMsg frame has exactly 12 spare bytes after the N12 result.  N13 keeps
- * a compact, saturating lifecycle view here so bkbttest can validate repeated
- * advertising without requiring J-Link.  Full diagnostic counters remain in
- * struct bk7258_ble_gatt_stats_s on AP.
+/* Preserve the 12-byte field in the RPMsg test result layout so existing
+ * CP/AP diagnostic result sizes remain compatible.  The product-specific
+ * GATT producer is not part of this team build.
  */
 
 struct bk7258_bt_gatt_lifecycle_s

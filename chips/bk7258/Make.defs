@@ -348,10 +348,6 @@ ifeq ($(CONFIG_BK7258_BT_IPC),y)
 BK7258_AP_BASE_CSRCS += bk7258_bt_hci.c
 endif
 
-ifeq ($(CONFIG_BK7258_BLE_GATT),y)
-BK7258_AP_BASE_CSRCS += bk7258_ble_gatt.c
-endif
-
 ifeq ($(CONFIG_BK7258_OTA_MANAGER),y)
 ifeq ($(filter clean distclean,$(MAKECMDGOALS)),)
 ifeq ($(wildcard $(BK7258_OTA_CATALOG_PUBLIC_SOURCE)),)

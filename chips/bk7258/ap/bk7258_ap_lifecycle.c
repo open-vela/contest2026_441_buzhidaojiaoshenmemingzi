@@ -46,9 +46,6 @@
 #ifdef CONFIG_BK7258_BT_IPC
 #  include <arch/chip/bk7258_bt_ipc.h>
 #endif
-#ifdef CONFIG_BK7258_BLE_GATT
-#  include <arch/chip/bk7258_ble_gatt.h>
-#endif
 #ifdef CONFIG_BK7258_OTA_MANAGER
 #  include <arch/chip/bk7258_ota_manager.h>
 #endif
@@ -118,8 +115,7 @@ static_assert(BK7258_AP_RPTUN_INIT_PRIORITY > CONFIG_RPTUN_PRIORITY,
 
 #if defined(CONFIG_BK7258_PM_CLOCK) && \
     (defined(CONFIG_BK7258_WIFI_VNET) || \
-     defined(CONFIG_BK7258_BT_IPC) || \
-     defined(CONFIG_BK7258_BLE_GATT))
+     defined(CONFIG_BK7258_BT_IPC))
 #  define BK7258_AP_STARTUP_FREQ_VOTE 1
 #endif
 
@@ -462,9 +458,6 @@ int bk7258_ap_lifecycle_startup(FAR uint32_t *failure)
   volatile struct bk7258_rptun_control_s *rptun =
     bk7258_rptun_control();
   struct sched_param startup_priority;
-#endif
-#ifdef CONFIG_BK7258_BLE_GATT
-  struct bk7258_ble_gatt_stats_s ble_gatt;
 #endif
   int error;
   int ret;
@@ -824,25 +817,6 @@ int bk7258_ap_lifecycle_startup(FAR uint32_t *failure)
     {
       return bk7258_ap_startup_failed(
                failure, BK7258_AP_ERROR_BLUETOOTH, ret);
-    }
-#endif
-
-#ifdef CONFIG_BK7258_BLE_GATT
-  ret = bk7258_ble_gatt_initialize();
-  if (ret < 0)
-    {
-      return bk7258_ap_startup_failed(
-               failure, BK7258_AP_ERROR_BLUETOOTH, ret);
-    }
-
-  ret = bk7258_ble_gatt_get_stats(&ble_gatt);
-  if (ret < 0 ||
-      ble_gatt.state != BK7258_BLE_GATT_STATE_ADVERTISING ||
-      ble_gatt.worker_cpu != 0u)
-    {
-      return bk7258_ap_startup_failed(
-               failure, BK7258_AP_ERROR_BLUETOOTH,
-               ret < 0 ? ret : -EIO);
     }
 #endif
 
