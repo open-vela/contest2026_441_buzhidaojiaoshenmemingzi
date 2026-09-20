@@ -42,7 +42,8 @@ def read_source(path):
 
 def audit(root):
     root = root.resolve(strict=True)
-    for name in ('app', 'board', 'app/vision_badge/src'):
+    board_tree = 'boards' if (root / 'boards').is_dir() else 'board'
+    for name in ('app', board_tree, 'app/vision_badge/src'):
         if not (root / name).is_dir() or (root / name).is_symlink():
             raise ValueError(f'缺少或不支持的项目目录：{name}')
     placeholders = {}
@@ -55,7 +56,7 @@ def audit(root):
     def walk_error(error):
         raise error
 
-    for subtree in ('app', 'board'):
+    for subtree in ('app', board_tree):
         for directory, directories, files in os.walk(root / subtree, onerror=walk_error):
             for name in directories:
                 if (Path(directory) / name).is_symlink():

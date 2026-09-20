@@ -16,5 +16,5 @@ BK7258 32+2 CRC 编码，`package.py`/`trust.py` 保留交付校验能力，`lay
 CP/AP `.config`、ELF、map、bin、构建清单和 SHA256，再由用户决定烧录。工具
 不会授权覆盖 RF、MAC、EasyFlash 或用户数据，也不替用户执行烧录。
 
-详细步骤见 `docs/构建与提交指南.md`，外部代码来源见
+详细步骤见 `docs/构建与提交指南.md`，组件边界与许可证见
 `SOURCE_PROVENANCE.md`。
