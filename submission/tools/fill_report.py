@@ -11,7 +11,7 @@ from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Inches, Pt
+from docx.shared import Inches, Length, Pt
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -129,6 +129,7 @@ def add_body(document, anchor, kind: str, value) -> None:
     elif kind == "list":
         paragraph.style = "List Bullet"
         paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        paragraph.paragraph_format.first_line_indent = Length(266700)
         set_paragraph_text(paragraph, value)
     elif kind == "code":
         paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -148,6 +149,7 @@ def add_body(document, anchor, kind: str, value) -> None:
         set_paragraph_text(caption, match.group(1))
     else:
         paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        paragraph.paragraph_format.first_line_indent = Length(266700)
         paragraph.paragraph_format.keep_together = True
         set_paragraph_text(paragraph, value)
 
@@ -175,7 +177,7 @@ def main() -> None:
     original_paragraphs = list(document.paragraphs)
     sections = markdown_sections(DRAFT.read_text(encoding="utf-8"))
 
-    set_paragraph_text(document.paragraphs[0], "BK7258 R1 视觉辅助胸牌 OpenVela 技术报告")
+    set_paragraph_text(document.paragraphs[0], "基于 OpenVela 的视障随行视觉辅助胸牌")
     document.paragraphs[0].runs[0].font.size = Pt(20)
     document.paragraphs[0].runs[0].bold = True
     for section in document.sections:
@@ -183,7 +185,7 @@ def main() -> None:
             paragraph.clear()  # Remove the template's unrelated picture watermark.
 
     info = document.tables[2]
-    info.cell(1, 1).text = "BK7258 R1 视觉辅助胸牌 OpenVela"
+    info.cell(1, 1).text = "基于 OpenVela 的视障随行视觉辅助胸牌"
     info.cell(2, 1).text = "不知道叫什么名字（队伍编号 441）"
     info.cell(3, 1).text = "邢晓亮（GitHub：xxluestc）：BSP 移植、驱动适配、构建烧录、实机验证、应用与报告整理"
     info.cell(4, 1).text = "新硬件平台适配"
@@ -246,7 +248,7 @@ def main() -> None:
                 run.font.name = "宋体"
                 run._element.get_or_add_rPr().rFonts.set(qn("w:eastAsia"), "宋体")
 
-    document.core_properties.title = "BK7258 R1 视觉辅助胸牌 OpenVela"
+    document.core_properties.title = "基于 OpenVela 的视障随行视觉辅助胸牌"
     document.core_properties.subject = "2026 首届 OpenVela AI 硬件开发者大赛技术报告"
     document.save(OUTPUT)
     print(OUTPUT)
