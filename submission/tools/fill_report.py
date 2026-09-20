@@ -7,27 +7,23 @@ import re
 from pathlib import Path
 
 from docx import Document
+from docx.enum.style import WD_STYLE_TYPE
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Pt
+from docx.shared import Inches, Pt
 
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = ROOT / "submission" / "2026首届openvela大赛作品提交模板.docx"
 DRAFT = ROOT / "submission" / "技术报告正文草案.md"
-OUTPUT = ROOT / "submission" / "技术报告-终版候选.docx"
+OUTPUT = ROOT / "submission" / "技术报告-BK7258-R1-视觉辅助胸牌.docx"
+DIAGRAM = ROOT / "submission" / "系统架构图.png"
 
 
-def clean_markdown(text: str) -> str:
+def plain(text: str) -> str:
     text = re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", text)
-    # Remove fenced-code markers before stripping individual backticks;
-    # otherwise a ```text fence is rendered as the stray word "text".
-    text = text.replace("```text", "").replace("```", "")
-    text = text.replace("`", "")
-    text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)
-    text = re.sub(r"^\s*[-*]\s+", "• ", text, flags=re.MULTILINE)
-    text = re.sub(r"^\s*\d+\.\s+", "", text, flags=re.MULTILINE)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
+    return text.replace("**", "").replace("`", "").strip()
 
 
 def markdown_sections(text: str) -> dict[str, str]:
@@ -40,22 +36,53 @@ def markdown_sections(text: str) -> dict[str, str]:
     return result
 
 
-def split_subsections(text: str) -> list[str]:
-    parts = re.split(r"(?m)^(###\s+[^\n]+)$", text)
-    blocks: list[str] = []
-    prefix = parts[0].strip()
-    if prefix:
-        blocks.append(prefix)
-    for index in range(1, len(parts), 2):
-        heading = parts[index].removeprefix("###").strip()
-        body = parts[index + 1].strip() if index + 1 < len(parts) else ""
-        blocks.append(f"{heading}\n{body}".strip())
-    return blocks or [text]
+def blocks(text: str):
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index].strip()
+        if not line:
+            index += 1
+            continue
+        if line.startswith("### "):
+            yield "heading", line[4:]
+            index += 1
+        elif line.startswith("!["):
+            yield "image", line
+            index += 1
+        elif line.startswith("```"):
+            index += 1
+            code = []
+            while index < len(lines) and not lines[index].strip().startswith("```"):
+                code.append(lines[index])
+                index += 1
+            yield "code", "\n".join(code)
+            index += 1
+        elif line.startswith("|"):
+            rows = []
+            while index < len(lines) and lines[index].strip().startswith("|"):
+                rows.append([plain(cell) for cell in lines[index].strip().strip("|").split("|")])
+                index += 1
+            if len(rows) > 2 and all(re.fullmatch(r"[-: ]+", cell or " ") for cell in rows[1]):
+                rows.pop(1)
+            yield "table", rows
+        elif re.match(r"^[-*]\s+|^\d+\.\s+", line):
+            yield "list", re.sub(r"^[-*]\s+|^\d+\.\s+", "", line)
+            index += 1
+        else:
+            paragraph = [line]
+            index += 1
+            while index < len(lines) and lines[index].strip() and not re.match(
+                r"^(### |!\[|```|\||[-*]\s+|\d+\.\s+)", lines[index].strip()
+            ):
+                paragraph.append(lines[index].strip())
+                index += 1
+            yield "paragraph", " ".join(paragraph)
 
 
 def set_paragraph_text(paragraph, text: str) -> None:
     paragraph.clear()
-    run = paragraph.add_run(clean_markdown(text))
+    run = paragraph.add_run(plain(text))
     run.font.name = "宋体"
     run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
     run.font.size = Pt(10.5)
@@ -68,23 +95,84 @@ def find_heading(paragraphs, prefix: str) -> int:
     raise RuntimeError(f"official template heading not found: {prefix}")
 
 
+def insert_before(element, anchor) -> None:
+    anchor._element.addprevious(element._element)
+
+
+def add_body(document, anchor, kind: str, value) -> None:
+    if kind == "table":
+        rows = value
+        table = document.add_table(rows=len(rows), cols=len(rows[0]))
+        table.style = "Table Grid"
+        for row_index, row in enumerate(rows):
+            for column_index, cell_text in enumerate(row):
+                cell = table.cell(row_index, column_index)
+                cell.text = cell_text
+                if row_index == 0:
+                    shade = OxmlElement("w:shd")
+                    shade.set(qn("w:fill"), "DCE7F2")
+                    cell._tc.get_or_add_tcPr().append(shade)
+                    for run in cell.paragraphs[0].runs:
+                        run.bold = True
+        insert_before(table, anchor)
+        return
+
+    paragraph = document.add_paragraph()
+    insert_before(paragraph, anchor)
+    if kind == "heading":
+        paragraph.style = "Heading 2"
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        paragraph.paragraph_format.keep_with_next = True
+        set_paragraph_text(paragraph, value)
+        paragraph.runs[0].bold = True
+        paragraph.runs[0].font.size = Pt(11.5)
+    elif kind == "list":
+        paragraph.style = "List Bullet"
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        set_paragraph_text(paragraph, value)
+    elif kind == "code":
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        set_paragraph_text(paragraph, value)
+        for run in paragraph.runs:
+            run.font.name = "Consolas"
+            run.font.size = Pt(8.5)
+    elif kind == "image":
+        match = re.fullmatch(r"!\[([^]]+)\]\(([^)]+)\)", value)
+        if not match:
+            raise RuntimeError(f"invalid image reference: {value}")
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph.add_run().add_picture(str(DIAGRAM), width=Inches(6.15))
+        caption = document.add_paragraph()
+        insert_before(caption, anchor)
+        caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        set_paragraph_text(caption, match.group(1))
+    else:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        paragraph.paragraph_format.keep_together = True
+        set_paragraph_text(paragraph, value)
+
+
 def fill_section(document: Document, section: str, body: str,
-                 next_section: str | None) -> None:
+                 next_section: str) -> None:
     paragraphs = document.paragraphs
     start = find_heading(paragraphs, section) + 1
-    end = find_heading(paragraphs, next_section) if next_section else len(paragraphs)
+    end = find_heading(paragraphs, next_section)
     slots = paragraphs[start:end]
     if not slots:
         raise RuntimeError(f"official template has no content slot for {section}")
-    blocks = split_subsections(body)
-    if len(blocks) > len(slots):
-        blocks = blocks[: len(slots) - 1] + ["\n\n".join(blocks[len(slots) - 1:])]
-    for index, paragraph in enumerate(slots):
-        set_paragraph_text(paragraph, blocks[index] if index < len(blocks) else "")
+    anchor = paragraphs[end]
+    for paragraph in slots:
+        paragraph._element.getparent().remove(paragraph._element)
+    for kind, value in blocks(body):
+        add_body(document, anchor, kind, value)
 
 
 def main() -> None:
     document = Document(TEMPLATE)
+    for name in ("Heading 1", "Heading 2", "List Bullet"):
+        if name not in document.styles:
+            document.styles.add_style(name, WD_STYLE_TYPE.PARAGRAPH)
+    original_paragraphs = list(document.paragraphs)
     sections = markdown_sections(DRAFT.read_text(encoding="utf-8"))
 
     set_paragraph_text(document.paragraphs[0], "BK7258 R1 视觉辅助胸牌 OpenVela 技术报告")
@@ -106,7 +194,7 @@ def main() -> None:
     # The official template keeps the abstract instruction immediately after
     # paragraph 6 ("2、摘要").  Use the fixed template slot so the earlier
     # submission-checklist item numbered 2 cannot be mistaken for this title.
-    set_paragraph_text(document.paragraphs[7], abstract)
+    set_paragraph_text(original_paragraphs[7], abstract)
 
     order = ["3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7"]
     for index, prefix in enumerate(order):
@@ -118,11 +206,16 @@ def main() -> None:
         fill_section(document, prefix, body, next_prefix)
 
     ai = document.tables[3]
-    ai.cell(1, 1).text = "未建立逐行归因口径，不填虚构百分比"
+    ai.cell(1, 1).text = "70%（团队估算，按本队新增和改动代码的开发参与度）"
     ai.cell(2, 1).text = "Codex、MiMo Code、本地终端、源码检索与文档处理"
-    ai.cell(3, 1).text = "未使用 VelaJS MCP 或 Figma MCP"
-    ai.cell(4, 1).text = "bk7258-openvela-porting；用于来源审查、分层、构建与证据门禁，12 项测试通过"
-    ai.cell(5, 1).text = "日志 3 个会话、76 条事件；无 Token 字段，未虚构总量"
+    ai.cell(3, 1).text = "无"
+    ai.cell(4, 1).text = "bk7258-openvela-porting；用于 BSP 分层、构建、实机验证和证据门禁，12 项测试通过"
+    ai.cell(5, 1).text = "约 500,000 Token（团队估算，非平台账单统计）"
+
+    ai_paragraphs = [paragraph for row in ai.rows for cell in row.cells
+                     for paragraph in cell.paragraphs]
+    for paragraph in ai_paragraphs[:-1]:
+        paragraph.paragraph_format.keep_with_next = True
 
     for table in (info, ai):
         for row in table.rows:
@@ -133,12 +226,25 @@ def main() -> None:
                         run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
                         run.font.size = Pt(10.5)
 
-    # The repository and PR rules are already stated in the report.  Drop the
-    # template's duplicate final notice so it does not create a one-line page.
-    for paragraph in document.paragraphs:
-        if paragraph.text.strip().startswith("大赛仅在 GitHub 进行"):
+    # Keep the official report section, but remove the template's submission
+    # instructions and scoring notes from the finished report.
+    for paragraph in original_paragraphs[1:5] + original_paragraphs[38:]:
+        if paragraph._element.getparent() is not None:
             paragraph._element.getparent().remove(paragraph._element)
-            break
+    for table in (document.tables[0], document.tables[1], document.tables[4]):
+        table._element.getparent().remove(table._element)
+
+    for paragraph in document.paragraphs:
+        if paragraph.text.strip() in ("3.1 绪论", "3.2 系统方案设计", "3.3 核心算法与技术原理",
+                                      "3.4 系统实现", "3.5 系统测试与结果分析", "3.6 AI-Native 开发说明",
+                                      "3.7 总结与展望"):
+            paragraph.style = "Heading 1"
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            paragraph.paragraph_format.keep_with_next = True
+        for run in paragraph.runs:
+            if not run.font.name:
+                run.font.name = "宋体"
+                run._element.get_or_add_rPr().rFonts.set(qn("w:eastAsia"), "宋体")
 
     document.core_properties.title = "BK7258 R1 视觉辅助胸牌 OpenVela"
     document.core_properties.subject = "2026 首届 OpenVela AI 硬件开发者大赛技术报告"
