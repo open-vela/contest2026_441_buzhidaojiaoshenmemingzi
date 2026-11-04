@@ -31,6 +31,7 @@ foreach(BK7258_REQUIRED_SDK_PATH
 endforeach()
 
 set(BK7258_NUTTX_OVERLAY_DIR "${NUTTX_DIR}/../vendor/beken/nuttx")
+include(${CMAKE_CURRENT_LIST_DIR}/ap/agora/agora.cmake)
 
 # Arm GNU's C++ wrappers use include_next for the C library. Put the
 # matching toolchain C++ headers before NuttX's C headers so that wrappers
@@ -285,11 +286,11 @@ if(CONFIG_BK7258_WDT)
   list(APPEND BK7258_CP_SRCS cp/bk7258_wdt.c)
 endif()
 
-if(CONFIG_BK7258_WDT OR CONFIG_BK7258_OTA)
+if(CONFIG_BK7258_WDT OR CONFIG_BK7258_OTA OR CONFIG_BK7258_PM_SOFT_OFF)
   list(APPEND BK7258_CP_SRCS cp/bk7258_system_reset.c)
 endif()
 
-if(CONFIG_BK7258_OTA OR CONFIG_BK7258_WDT_PRETIMEOUT_PANIC OR
+if(CONFIG_BK7258_OTA OR CONFIG_BK7258_PM_SOFT_OFF OR CONFIG_BK7258_WDT_PRETIMEOUT_PANIC OR
    CONFIG_BK7258_FLASH_MTD OR
    CONFIG_BK7258_BT_IPC OR CONFIG_BK7258_WIFI_VNET)
   list(APPEND BK7258_CP_SRCS cp/bk7258_storage.c)

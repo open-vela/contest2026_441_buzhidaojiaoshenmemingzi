@@ -233,6 +233,7 @@ struct bk7258_sdk_thread_start_s
 {
   beken_thread_function_t function;
   beken_thread_arg_t arg;
+  bool trace_psk;
 };
 
 #if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_SMP)
@@ -881,6 +882,55 @@ uint32_t bk_get_second(void)
  * Public Functions - Thread Management
  ****************************************************************************/
 
+#ifndef CONFIG_BK7258_AP_CORE
+/* The pinned v3.1.1.9 CP archive exports this handle.  Use only its identity
+ * and PID for diagnostics: never inspect the PSK cache or credential data.
+ * A weak declaration leaves other SDK/configuration combinations unchanged.
+ */
+
+extern beken_thread_t wpa_pskcalc_thread_handle __attribute__((weak));
+#endif
+
+static bool bk7258_sdk_psk_name(FAR const char *name)
+{
+#ifndef CONFIG_BK7258_AP_CORE
+  return name != NULL && strcmp(name, "pskc") == 0;
+#else
+  (void)name;
+  return false;
+#endif
+}
+
+static bool bk7258_sdk_psk_handle(beken_thread_t *thread)
+{
+#ifndef CONFIG_BK7258_AP_CORE
+  return thread != NULL && &wpa_pskcalc_thread_handle != NULL &&
+         thread == &wpa_pskcalc_thread_handle;
+#else
+  (void)thread;
+  return false;
+#endif
+}
+
+static bool bk7258_sdk_psk_alive(pid_t pid)
+{
+#if !defined(CONFIG_BK7258_AP_CORE) && CONFIG_TASK_NAME_SIZE > 0
+  FAR struct tcb_s *tcb;
+  bool alive;
+
+  /* CP is UP. Do not retain a TCB pointer after unlocking the scheduler. */
+
+  sched_lock();
+  tcb = nxsched_get_tcb(pid);
+  alive = tcb != NULL && bk7258_sdk_psk_name(tcb->name);
+  sched_unlock();
+  return alive;
+#else
+  (void)pid;
+  return false;
+#endif
+}
+
 static int bk7258_sdk_thread_trampoline(int argc, FAR char *argv[])
 {
   FAR struct bk7258_sdk_thread_start_s *start;
@@ -888,6 +938,7 @@ static int bk7258_sdk_thread_trampoline(int argc, FAR char *argv[])
   beken_thread_arg_t arg;
   FAR char *end;
   uintptr_t address;
+  bool trace_psk;
 
   if (argc != 2 || argv == NULL || argv[1] == NULL)
     {
@@ -906,6 +957,7 @@ static int bk7258_sdk_thread_trampoline(int argc, FAR char *argv[])
   start = (FAR struct bk7258_sdk_thread_start_s *)address;
   function = start->function;
   arg = start->arg;
+  trace_psk = start->trace_psk;
   kmm_free(start);
 
   if (function == NULL)
@@ -913,7 +965,19 @@ static int bk7258_sdk_thread_trampoline(int argc, FAR char *argv[])
       return -EINVAL;
     }
 
+  if (trace_psk)
+    {
+      syslog(LOG_INFO, "BK7258 WIFI: PSK thread running pid=%d\n",
+             (int)nxsched_gettid());
+    }
+
   function(arg);
+  if (trace_psk)
+    {
+      syslog(LOG_INFO, "BK7258 WIFI: PSK thread returned pid=%d\n",
+             (int)nxsched_gettid());
+    }
+
   return 0;
 }
 
@@ -926,29 +990,40 @@ bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
   char context[BK7258_SDK_THREAD_ARG_BUFSIZE];
   FAR char *argv[] = {context, NULL};
   pid_t pid;
+  bool trace_psk;
 
   if (name == NULL || function == NULL || stack_size == 0)
     {
       return BK_FAIL;
     }
 
-  /* Keep the verified no-argument path unchanged.  Exactly one immutable
+  trace_psk = bk7258_sdk_psk_name(name) && arg == NULL;
+  if (trace_psk)
+    {
+      syslog(LOG_INFO,
+             "BK7258 WIFI: PSK thread create previous=%d priority=%u stack=%lu\n",
+             thread != NULL ? (int)(uintptr_t)*thread : 0, priority,
+             (unsigned long)stack_size);
+    }
+
+  /* Keep other verified no-argument paths unchanged. One immutable
    * v3.1.1.9 call site per role is allowed to cross the NuttX main_t boundary
    * with a context: AP's DVP worker, or CP's temperature daemon.  The latter
    * receives the OTP temperature code as its non-NULL argument.  Do not
    * generalize this bridge: the SDK IPC worker has an incompatible semaphore
    * ABI and was observed to fault in nxsem_wait_slow.  Every other non-NULL
-   * argument retains fail-closed behavior.
+   * argument retains fail-closed behavior. CP's no-argument pskc thread uses
+   * the same trampoline solely to trace entry/return; its argument stays NULL.
    */
 
-  if (arg == NULL)
+  if (arg == NULL && !trace_psk)
     {
       pid = kthread_create(name,
                            SCHED_PRIORITY_DEFAULT + 2 - priority,
                            stack_size,
                            (main_t)function, NULL);
     }
-  else if (strcmp(name, BK7258_SDK_ARG_THREAD_NAME) == 0)
+  else if (strcmp(name, BK7258_SDK_ARG_THREAD_NAME) == 0 || trace_psk)
     {
       start = kmm_malloc(sizeof(*start));
       if (start == NULL)
@@ -958,6 +1033,7 @@ bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
 
       start->function = function;
       start->arg = arg;
+      start->trace_psk = trace_psk;
       snprintf(context, sizeof(context), "%" PRIxPTR, (uintptr_t)start);
       pid = kthread_create(name,
                            SCHED_PRIORITY_DEFAULT + 2 - priority,
@@ -983,6 +1059,12 @@ bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority,
   if (thread)
     {
       *thread = (void *)((uintptr_t)pid);
+    }
+
+  if (trace_psk)
+    {
+      syslog(LOG_INFO, "BK7258 WIFI: PSK thread created pid=%d\n",
+             (int)pid);
     }
 
   return BK_OK;
@@ -1127,11 +1209,27 @@ bk_err_t rtos_thread_set_priority(beken_thread_t *thread, int priority)
 {
   struct sched_param param;
   pid_t pid;
+  bool trace_psk;
+  bool alive = false;
+  int ret;
 
   pid = thread ? (pid_t)(uintptr_t)*thread : nxsched_gettid();
   param.sched_priority = SCHED_PRIORITY_DEFAULT + 2 - priority;
+  trace_psk = bk7258_sdk_psk_handle(thread);
+  if (trace_psk)
+    {
+      alive = bk7258_sdk_psk_alive(pid);
+    }
 
-  return sched_setparam(pid, &param) == OK ? BK_OK : BK_FAIL;
+  ret = sched_setparam(pid, &param);
+  if (trace_psk)
+    {
+      syslog(ret == OK ? LOG_INFO : LOG_WARNING,
+             "BK7258 WIFI: PSK thread priority pid=%d alive=%u ret=%d\n",
+             (int)pid, alive, ret);
+    }
+
+  return ret == OK ? BK_OK : BK_FAIL;
 }
 
 bk_err_t rtos_delete_thread(beken_thread_t *thread)
@@ -1141,6 +1239,13 @@ bk_err_t rtos_delete_thread(beken_thread_t *thread)
   if (thread)
     {
       pid = (pid_t)((uintptr_t)*thread);
+    }
+
+  if (bk7258_sdk_psk_handle(thread) ||
+      bk7258_sdk_psk_alive(pid == 0 ? nxsched_gettid() : pid))
+    {
+      syslog(LOG_INFO, "BK7258 WIFI: PSK thread delete pid=%d self=%u\n",
+             (int)(pid == 0 ? nxsched_gettid() : pid), pid == 0);
     }
 
   task_delete(pid);

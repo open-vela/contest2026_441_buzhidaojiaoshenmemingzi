@@ -37,6 +37,10 @@ enum bk7258_aidk_eye_state_e
 };
 
 int bk7258_aidk_eye_set_state(enum bk7258_aidk_eye_state_e state);
+#ifdef CONFIG_CONTEST2026_441_POWER
+#  include <stdbool.h>
+int bk7258_aidk_eye_power(bool enabled);
+#endif
 #endif
 
 #endif

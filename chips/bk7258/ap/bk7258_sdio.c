@@ -540,6 +540,11 @@ static int bk7258_sdio_finish_single_transfer(
         }
 
       bk7258_sdio_finish_stop_transmission();
+      if (err != BK_OK || (r1 & 0xfdffe088u) != 0)
+        {
+          syslog(LOG_ERR, "BKSDIO STOP failed sdk=%d r1=%08lx original=%d\n",
+                 err, (unsigned long)r1, result);
+        }
       if (result == OK)
         {
           result = err != BK_OK ? bk7258_sdio_map_err(err) :
@@ -1095,6 +1100,21 @@ static int bk7258_sdio_sendcmd(FAR struct sdio_dev_s *dev, uint32_t cmd,
              (unsigned long)host_cmd.cmd_index,
              (unsigned long)host_cmd.argument,
              (unsigned long)host_cmd.wait_rsp_timeout, err);
+      /* The card can accept WRITE_BLOCK before its response is lost. The
+       * NuttX command-error path returns before SENDSETUP/CANCEL, leaving
+       * that card in RCV. In the GDMA profile CMD24 is sent as CMD25, so a
+       * controller FIFO reset alone cannot terminate the card transaction.
+       * Abort once via the existing bounded CMD12 path; never replay data
+       * or turn the original command failure into successful completion.
+       */
+#ifdef CONFIG_SDIO_V2P0
+      if ((host_cmd.cmd_index == 24u || host_cmd.cmd_index == 25u) &&
+          (cmd & MMCSD_WRXFR) != 0)
+        {
+          priv->single_write = true;
+          return bk7258_sdio_finish_single_transfer(priv, priv->xfer_result);
+        }
+#endif
       priv->events = SDIOWAIT_ERROR;
       if ((cmd & MMCSD_DATAXFR_MASK) != 0)
         {

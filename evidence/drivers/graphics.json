@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "record_type": "selected-structured-verification-record",
+  "upstream_record_sha256": "816973c03100e8f1426e1c376d1dc9e9349382463eb0a2f25933180f96fc4765",
+  "component": {
+    "path": "apps/graphics/lvgl/lvgl",
+    "url": "https://github.com/open-vela/apps_graphics_lvgl.git",
+    "commit": "0f2a49f588505a00e8b46e25a34581c87291a62a",
+    "tree": "264512c006668a4aad179e7053a5ddc32e0b33eb",
+    "license": "MIT",
+    "license_file": "LICENCE.txt"
+  },
+  "firmware_input_tree_sha256": "4431bd71a0b80edac8f98e9b2ba2c4d20763df0c0b0138e6d23c60c34bb72e30",
+  "role": "LCD/LVGL driver and component integration; not an end-user visual interface",
+  "chain": {
+    "resolved_configuration": {
+      "source_name": "ap.config",
+      "sha256": "364102d7cdc5f3618b63c399d512f2f27c3c52ee020b3df9328997e9d298e093",
+      "excerpts": [
+        {
+          "source_line": 514,
+          "text": "CONFIG_BK7258_AIDK_EYE_LVGL_STATUS=y"
+        }
+      ]
+    },
+    "linked_symbols": {
+      "source_name": "ap.map",
+      "sha256": "09ef251c1951a5598e27e97d5bc1da6f1db19460298566149397db6d82f63e60",
+      "excerpts": [
+        {
+          "source_line": 44040,
+          "text": "lv_display_create                                 apps/graphics/lvgl/liblvgl.a(lv_display.c.o)"
+        },
+        {
+          "source_line": 44767,
+          "text": "lv_init                                           apps/graphics/lvgl/liblvgl.a(lv_init.c.o)"
+        },
+        {
+          "source_line": 44783,
+          "text": "lv_label_create                                   apps/graphics/lvgl/liblvgl.a(lv_label.c.o)"
+        }
+      ]
+    },
+    "actual_R1_execution": {
+      "sha256": "f69ca835f7cd8699f763363ec14bf0db060b0f46c7c071a0a25a768e417434f3",
+      "excerpts": [
+        {
+          "source_line": 52,
+          "text": "[ 1680.797813] [CPU0] [25] [  INFO] [ap] AIDK EYE frame state=1 elapsed=280 ms priority=90"
+        },
+        {
+          "source_line": 241,
+          "text": "[    4.574094] [CPU0] [25] [  INFO] [ap] AIDK EYE LVGL render result=0 (hardware display unverified)"
+        },
+        {
+          "source_line": 242,
+          "text": "[    4.693407] [CPU0] [25] [  INFO] [ap] AIDK EYE frame state=0 elapsed=130 ms priority=90"
+        }
+      ]
+    },
+    "source_calls": [
+      {
+        "path": "boards/bk7258/aidk_ai_toy/src/bk7258_aidk_eye_status.c",
+        "operations": [
+          "lv_init",
+          "lv_display_create RGB565 full render",
+          "lv_label_create",
+          "lv_refr_now",
+          "flush to g_pixels"
+        ]
+      },
+      {
+        "path": "boards/bk7258/aidk_ai_toy/src/bk7258_aidk_eye.c",
+        "operations": [
+          "call status_render on existing eye owner",
+          "copy status row into two panel rows",
+          "bk7258_aidk_dual_lcd_pair_putrun",
+          "frame log only after all row writes succeed"
+        ]
+      }
+    ]
+  }
+}

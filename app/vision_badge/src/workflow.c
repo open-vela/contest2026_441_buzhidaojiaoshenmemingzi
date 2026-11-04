@@ -9,6 +9,7 @@ static int vision_badge_fail(struct vision_badge_context_s *context,
                              int error_code)
 {
   context->last_error = error_code;
+  feedback_service_activity(VISION_BADGE_STAGE_ERROR);
   return error_code;
 }
 
@@ -27,6 +28,7 @@ int vision_badge_run_once(struct vision_badge_context_s *context,
 
   context->stage = VISION_BADGE_STAGE_CAPTURE;
   context->last_error = 0;
+  feedback_service_activity(VISION_BADGE_STAGE_CAPTURE);
 
   ret = camera_service_capture(image);
   if (ret < 0)
@@ -35,6 +37,7 @@ int vision_badge_run_once(struct vision_badge_context_s *context,
     }
 
   context->stage = VISION_BADGE_STAGE_QUERY;
+  feedback_service_activity(VISION_BADGE_STAGE_QUERY);
   ret = vision_service_query(image, prompt, result);
   if (ret < 0)
     {
@@ -49,6 +52,7 @@ int vision_badge_run_once(struct vision_badge_context_s *context,
     }
 
   context->stage = VISION_BADGE_STAGE_DONE;
+  feedback_service_activity(VISION_BADGE_STAGE_DONE);
   return 0;
 }
 

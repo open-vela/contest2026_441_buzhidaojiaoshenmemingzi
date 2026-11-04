@@ -23,6 +23,9 @@ enum bk7258_storage_guard_e
   BK7258_STORAGE_GUARD_OTA_CONFIRM_PRIMARY,
   BK7258_STORAGE_GUARD_OTA_CONFIRM_SECONDARY,
   BK7258_STORAGE_GUARD_RESET_MARKER,
+  /* Topology-independent shutdown barrier. Never grants write permission;
+   * shares the same mutex with all region transactions. */
+  BK7258_STORAGE_GUARD_QUIESCE,
   BK7258_STORAGE_GUARD_COUNT
 };
 

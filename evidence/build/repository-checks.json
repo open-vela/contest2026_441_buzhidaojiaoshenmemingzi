@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "scope": "repository-input-and-offline-deployment-review",
+  "firmware_input_tree_sha256": "4431bd71a0b80edac8f98e9b2ba2c4d20763df0c0b0138e6d23c60c34bb72e30",
+  "checks": {
+    "layers": {
+      "sources": 372,
+      "kconfig": 248,
+      "legacy_exceptions": 0,
+      "exit": 0
+    },
+    "layout": {
+      "partitions": 15,
+      "exit": 0
+    },
+    "service_regression": {
+      "modules": [
+        "test_server",
+        "test_scene_relay",
+        "test_demo_profile",
+        "test_local_asr_model"
+      ],
+      "tests": 94,
+      "exit": 0,
+      "transport": "mocks and local test HTTP, no cloud service"
+    },
+    "python_syntax_files": 72,
+    "powershell_syntax_files": 11,
+    "deployment_preflights": [
+      {
+        "case": "product-check-only",
+        "exit": 0,
+        "source": "synthetic temporary config; CheckOnly, no serial or service started"
+      },
+      {
+        "case": "device-check-only",
+        "exit": 0,
+        "source": "synthetic temporary config; CheckOnly, no serial or service started"
+      },
+      {
+        "case": "invalid-device-config-rejected-before-serial",
+        "exit_nonzero": true
+      }
+    ]
+  },
+  "environment": "Existing Windows Python and PowerShell7; service regressions use mocks/local test HTTP.",
+  "device_or_paid_cloud_started": false
+}

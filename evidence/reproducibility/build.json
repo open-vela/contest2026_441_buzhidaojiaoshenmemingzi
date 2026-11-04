@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "record_type": "selected-structured-verification-record",
+  "upstream_record_sha256": "64c51b1dc45d301f010369008e61b521d2289bd297772bcd41ba30d8811c72a3",
+  "scope": "isolated-local-mirror-workspace-rebuild-not-network-bootstrap-or-hardware",
+  "fixed_inputs": {
+    "source_commit": "e01f7dbe287f3aa5aa8b0a2c6273f341a811c95e",
+    "dirty": true,
+    "input_tree_sha256": "4431bd71a0b80edac8f98e9b2ba2c4d20763df0c0b0138e6d23c60c34bb72e30",
+    "input_count": 486
+  },
+  "base_checkouts": 15,
+  "sdk_profiles": [
+    {
+      "profile": "cp-aidk",
+      "tree_sha256": "d62004bf57db326149324184cf3c818914d77f46c66ad5ef8d053b67569c68d0"
+    },
+    {
+      "profile": "ap-aidk",
+      "tree_sha256": "145e57bf500b54d12cb8791574bb17a87d27d11533fd615d72a7de6651bd58f8"
+    }
+  ],
+  "toolchain_archive_sha256": "97dbb4f019ad1650b732faffcc881689cedc14e2b7ee863d390e0a41ef16c9a3",
+  "results": {
+    "build_exit": 0,
+    "manifest_verify_exit": 0,
+    "offline_check_exit": 0,
+    "source_provenance_matches": true,
+    "resolved_roles_match": true,
+    "layout_matches": true,
+    "sdk_and_toolchain_match": true
+  },
+  "python_test_count": 168,
+  "offline_semantics": "frozen-source host mocks and actual C checks, no board/microphone/cloud",
+  "new_inactive_images": {
+    "ap": {
+      "size": 1502868,
+      "sha256": "b2b5e5936464dbcea44ffaca4deece4e7d98d9bfa47b63d9a0a7bbef18af0a02",
+      "matches_current_demo": false
+    },
+    "boot": {
+      "size": 3808,
+      "sha256": "c87852b82ead29ee09cccc0bc4dba2b940206af50d0e0bb580146fe80f9be659",
+      "matches_current_demo": true
+    },
+    "cp": {
+      "size": 931906,
+      "sha256": "152cb7d6fe4f9cb503ec354adab18ac3d62cf2598fffab7ccd940c5f746269ec",
+      "matches_current_demo": true
+    },
+    "pair": {
+      "size": 2854912,
+      "sha256": "74778bb5bade3602d616e49b8ec6317b9753144a49dc6454a60f86d54e601f38",
+      "matches_current_demo": false
+    }
+  }
+}

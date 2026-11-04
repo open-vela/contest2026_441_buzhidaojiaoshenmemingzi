@@ -421,4 +421,32 @@ int bk7258_aidk_dual_lcd_pair_putrun(unsigned int row,
   return OK;
 }
 
+#ifdef CONFIG_CONTEST2026_441_POWER
+/* Eye worker only. Standard panel sleep/backlight callbacks preserve shared
+ * P25 ownership; never cut P52, which also supplies the motor rail. */
+int bk7258_aidk_dual_lcd_power(bool enabled)
+{
+  static int saved[2] = {-1, -1};
+  int first_error = 0;
+  for (unsigned int i = 0; i < nitems(g_aidk_lcd_panels); i++)
+    {
+      struct lcd_dev_s *lcd = g_aidk_lcd_panels[i].lcddev;
+      int ret = 0;
+      if (!lcd || !lcd->setpower || !lcd->getpower) ret = -ENODEV;
+      else if (!enabled)
+        {
+          if (saved[i] < 0) saved[i] = lcd->getpower(lcd);
+          ret = saved[i] < 0 ? saved[i] : lcd->setpower(lcd, 0);
+        }
+      else if (saved[i] >= 0)
+        {
+          ret = lcd->setpower(lcd, saved[i]);
+          if (!ret) saved[i] = -1;
+        }
+      if (ret < 0 && !first_error) first_error = ret;
+    }
+  return first_error;
+}
+#endif
+
 #endif /* CONFIG_BK7258_AIDK_DUAL_LCD */

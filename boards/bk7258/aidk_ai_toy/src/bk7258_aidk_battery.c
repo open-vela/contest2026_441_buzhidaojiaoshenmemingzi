@@ -243,6 +243,7 @@ static int aidk_battery_get_voltage(FAR struct battery_charger_dev_s *dev,
   struct adc_msg_s sample;
   struct file adc;
   ssize_t nread;
+  int close_ret;
   int ret;
 
   (void)dev;
@@ -252,7 +253,10 @@ static int aidk_battery_get_voltage(FAR struct battery_charger_dev_s *dev,
       return -EINVAL;
     }
 
-  ret = file_open(&adc, BK7258_BOARD_VBAT_ADC_DEV, O_RDONLY);
+  /* TRIGGER synchronously supplies one sample.  If it did not reach the
+   * upper-half FIFO, report EAGAIN instead of hanging on an empty queue.
+   */
+  ret = file_open(&adc, BK7258_BOARD_VBAT_ADC_DEV, O_RDONLY | O_NONBLOCK);
   if (ret < 0)
     {
       return ret;
@@ -271,7 +275,11 @@ static int aidk_battery_get_voltage(FAR struct battery_charger_dev_s *dev,
             (nread < 0 ? (int)nread : -EIO);
     }
 
-  file_close(&adc);
+  close_ret = file_close(&adc);
+  if (ret >= 0 && close_ret < 0)
+    {
+      ret = close_ret;
+    }
   if (ret < 0)
     {
       return ret;

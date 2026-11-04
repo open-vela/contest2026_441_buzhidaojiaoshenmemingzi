@@ -52,6 +52,9 @@
 #endif
 #ifdef __NuttX__
 #include <sys/mount.h>
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_CONTEST2026_441_AGORA)
+#include <vision_badge/agora_control.h>
+#endif
 #endif
 
 /* ---- 服务器地址配置 ---- */
@@ -74,11 +77,6 @@
 #define MIMO_PROVISION_RESERVED_OFFSET 813
 #define MIMO_PROVISION_CRC_OFFSET 814
 
-/* The CP/AP Wi-Fi service has one connection per boot.  Keep the successful
- * result in the application so a second vision request does not re-run the
- * scan and WPA handshake. */
-static bool g_mimo_network_ready;
-
 #ifdef __NuttX__
 static mutex_t g_mimo_session_lock = NXMUTEX_INITIALIZER;
 #endif
@@ -86,10 +84,36 @@ static mutex_t g_mimo_session_lock = NXMUTEX_INITIALIZER;
 static uint32_t mimo_provision_crc32(const uint8_t *data, size_t size);
 
 #ifdef __NuttX__
+static int mimo_prepare_storage(bool *mounted)
+{
+  *mounted = false;
+#if defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_CONTEST2026_441_AGORA)
+  /* Shared board mount: do not mount again or unmount another user's volume. */
+  return agora_control_prepare_storage();
+#else
+  const char *device = CONFIG_CONTEST2026_441_VISION_BADGE_MIMO_STORAGE_DEVICE;
+  int ret;
+
+  (void)mkdir("/mnt/sdnand", 0777);
+  if (stat("/dev/mmcsd0p0", &(struct stat){0}) == 0)
+    {
+      device = "/dev/mmcsd0p0";
+    }
+
+  ret = mount(device, "/mnt/sdnand", "vfat", 0, NULL);
+  if (ret < 0 && errno != EBUSY)
+    {
+      return -errno;
+    }
+
+  *mounted = ret == 0;
+  return 0;
+#endif
+}
+
 int mimo_http_save_provision(const char *ssid, const char *password,
                              const char *api_key)
 {
-  const char *device = CONFIG_CONTEST2026_441_VISION_BADGE_MIMO_STORAGE_DEVICE;
   uint8_t record[MIMO_PROVISION_RECORD_SIZE];
   const char *temporary = "/mnt/sdnand/prov/wifi.tmp";
   const char *final = "/mnt/sdnand/prov/wifi.bin";
@@ -130,19 +154,9 @@ int mimo_http_save_provision(const char *ssid, const char *password,
   record[MIMO_PROVISION_CRC_OFFSET + 2] = (uint8_t)(crc >> 16);
   record[MIMO_PROVISION_CRC_OFFSET + 3] = (uint8_t)(crc >> 24);
 
-  (void)mkdir("/mnt/sdnand", 0777);
-  if (stat("/dev/mmcsd0p0", &(struct stat){0}) == 0)
+  ret = mimo_prepare_storage(&mounted);
+  if (ret < 0)
     {
-      device = "/dev/mmcsd0p0";
-    }
-
-  if (mount(device, "/mnt/sdnand", "vfat", 0, NULL) == 0)
-    {
-      mounted = true;
-    }
-  else if (errno != EBUSY)
-    {
-      ret = -errno;
       goto out;
     }
 
@@ -363,7 +377,6 @@ static int mimo_decode_network_credentials(const uint8_t *record, size_t size,
 #ifdef __NuttX__
 static int mimo_open_credentials(FILE **file, bool *mounted)
 {
-  const char *device = CONFIG_CONTEST2026_441_VISION_BADGE_MIMO_STORAGE_DEVICE;
   int ret;
 
   *mounted = false;
@@ -373,19 +386,11 @@ static int mimo_open_credentials(FILE **file, bool *mounted)
       return 0;
     }
 
-  (void)mkdir("/mnt/sdnand", 0777);
-  if (stat("/dev/mmcsd0p0", &(struct stat){0}) == 0)
+  ret = mimo_prepare_storage(mounted);
+  if (ret < 0)
     {
-      device = "/dev/mmcsd0p0";
+      return ret;
     }
-
-  ret = mount(device, "/mnt/sdnand", "vfat", 0, NULL);
-  if (ret < 0 && errno != EBUSY)
-    {
-      return -errno;
-    }
-
-  *mounted = ret == 0;
   *file = mimo_open_credential_file();
   if (*file == NULL)
     {
@@ -403,7 +408,6 @@ static int mimo_open_credentials(FILE **file, bool *mounted)
 
 static int mimo_open_provision_record(FILE **file, bool *mounted)
 {
-  const char *device = CONFIG_CONTEST2026_441_VISION_BADGE_MIMO_STORAGE_DEVICE;
   int ret;
 
   *mounted = false;
@@ -418,19 +422,11 @@ static int mimo_open_provision_record(FILE **file, bool *mounted)
       return 0;
     }
 
-  (void)mkdir("/mnt/sdnand", 0777);
-  if (stat("/dev/mmcsd0p0", &(struct stat){0}) == 0)
+  ret = mimo_prepare_storage(mounted);
+  if (ret < 0)
     {
-      device = "/dev/mmcsd0p0";
+      return ret;
     }
-
-  ret = mount(device, "/mnt/sdnand", "vfat", 0, NULL);
-  if (ret < 0 && errno != EBUSY)
-    {
-      return -errno;
-    }
-
-  *mounted = ret == 0;
   *file = fopen("/mnt/sdnand/prov/wifi.bin", "rb");
   if (*file == NULL)
     {
@@ -980,18 +976,21 @@ int mimo_http_prepare_network(void)
   bool mounted;
   int ret;
 
-  if (g_mimo_network_ready)
-    {
-      return 0;
-    }
-
   memset(&result, 0, sizeof(result));
   ret = bk7258_wifi_read_link(&result);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
   if (ret >= 0 && result.link_state == BK7258_WIFI_LINK_CONNECTED &&
       result.ipaddr != 0)
     {
-      g_mimo_network_ready = true;
-      return 0;
+      /* CP association/DHCP and AP's native socket interface are separate.
+       * Revalidate on every request, without rescanning a healthy link.
+       * The existing setter takes net_lock and also publishes CP's DNS. */
+      return bk7258_wifi_native_lease_matches(&result) ? 0 :
+             bk7258_wifi_set_native_lease(&result);
     }
 
   ret = mimo_open_provision_record(&file, &mounted);
@@ -1062,7 +1061,8 @@ int mimo_http_prepare_network(void)
          result.ipaddr != 0 ? 0 : -ENETDOWN);
   if (ret == 0)
     {
-      g_mimo_network_ready = true;
+      ret = bk7258_wifi_native_lease_matches(&result) ? 0 :
+            bk7258_wifi_set_native_lease(&result);
     }
 
   return ret;

@@ -1,0 +1,366 @@
+{
+  "scope": "architectural-responsibility-and-reviewed-delta-map",
+  "count_semantics": "architectural responsibility groups",
+  "modules": [
+    {
+      "key": "cp",
+      "directory": "chips/bk7258/cp",
+      "responsibility_groups": 7,
+      "source_config_files": 47,
+      "groups": [
+        {
+          "name": "系统启动与基础运行",
+          "files": "bk7258_start.c、bk7258_vectors.c、bk7258_cp_platform.c",
+          "basis": "已有启动/架构基础",
+          "project_work": "维护CP配置与运行接入"
+        },
+        {
+          "name": "AP控制与监督",
+          "files": "bk7258_ap_control.c、bk7258_ap_supervisor.c",
+          "basis": "已有多核控制基础",
+          "project_work": "接入产品诊断与状态核对"
+        },
+        {
+          "name": "时钟、GPIO与系统控制",
+          "files": "bk7258_clock.c、bk7258_gpio_lowerhalf.c、bk7258_wdt.c",
+          "basis": "已有芯片/SDK接口",
+          "project_work": "维护OS接口与板级使用"
+        },
+        {
+          "name": "Flash与存储事务",
+          "files": "bk7258_storage.c、bk7258_flash.c、bk7258_flash_mtd.c",
+          "basis": "复用NuttX与固定SDK存储接口",
+          "project_work": "新增只读QUIESCE屏障以适应无ONCHIP_DATAFS拓扑，关联31732fd"
+        },
+        {
+          "name": "电源协调与软关机",
+          "files": "bk7258_pm_coord_cp.c、bk7258_pm_soft_off.c",
+          "basis": "复用既有PM接口和SDK睡眠入口",
+          "project_work": "三秒门限、按键释放/唤醒恢复顺序及产品退出协调，关联bd64b12、0063868"
+        },
+        {
+          "name": "跨域外设服务",
+          "files": "bk7258_saradc_server.c、bk7258_temperature_server.c、bk7258_bt_controller.c",
+          "basis": "已有平台服务骨架",
+          "project_work": "按实际配置选用"
+        },
+        {
+          "name": "镜像与设备管理",
+          "files": "bk7258_ota_pair.c、bk7258_ota_image.c、bk7258_identity.c",
+          "basis": "已有镜像/设备基础",
+          "project_work": "保持交付身份与当前direct启动一致"
+        }
+      ]
+    },
+    {
+      "key": "ap",
+      "directory": "chips/bk7258/ap",
+      "responsibility_groups": 8,
+      "source_config_files": 74,
+      "groups": [
+        {
+          "name": "AP启动、SMP与IPI",
+          "files": "bk7258_ap_start.c、bk7258_ap_smp.c、bk7258_ap_ipi.c",
+          "basis": "SMP主体与固定公开基础相同/仅注释差异",
+          "project_work": "本项目配置、运行接入与核验"
+        },
+        {
+          "name": "生命周期与健康状态",
+          "files": "bk7258_ap_lifecycle.c、bk7258_ap_health.c",
+          "basis": "已有平台状态与心跳基础",
+          "project_work": "结合CP监督检查在线和阶段，保留角色边界"
+        },
+        {
+          "name": "音频输入与输出",
+          "files": "bk7258_mic.c、bk7258_aud.c",
+          "basis": "复用Audio upper-half、SDK与已有lower-half",
+          "project_work": "已确认MIC连续性/丢样本诊断关联0cb374f；AUD的curbyte/关闭合同差分归为当前适配"
+        },
+        {
+          "name": "相机与JPEG媒体",
+          "files": "bk7258_dvp.c、bk7258_jpeg_encoder.c",
+          "basis": "复用Video/硬件媒体基础",
+          "project_work": "增加DVP交付诊断并协调ready帧/调度，关联39a36d0、c3fe256"
+        },
+        {
+          "name": "显示与图形接入",
+          "files": "bk7258_lvgl_fb.c、bk7258_lcd_spi.c、bk7258_qspi.c",
+          "basis": "复用LCD接口和图形组件",
+          "project_work": "接入LVGL状态反馈及R1双屏路径，关联d87cf53；属于驱动适配"
+        },
+        {
+          "name": "总线、DMA与器件访问",
+          "files": "bk7258_dma.c、bk7258_i2c.c、bk7258_spi.c、bk7258_pinmux.c",
+          "basis": "已有总线与SDK硬件叶",
+          "project_work": "按板配置绑定并使用"
+        },
+        {
+          "name": "网络、蓝牙与USB",
+          "files": "bk7258_wifi.c、bk7258_bt_hci.c、bk7258_usbhost.c",
+          "basis": "已有通信控制器/协议接入基础",
+          "project_work": "产品选用网络等既有能力，其他可选能力按配置分别核查"
+        },
+        {
+          "name": "电源与镜像协作",
+          "files": "bk7258_pm_coord_ap.c、bk7258_pm_client.c、bk7258_ota_manager.c",
+          "basis": "已有跨域服务与镜像接口",
+          "project_work": "产品退出对接资源排空"
+        }
+      ]
+    },
+    {
+      "key": "common",
+      "directory": "chips/bk7258/common",
+      "responsibility_groups": 6,
+      "source_config_files": 42,
+      "groups": [
+        {
+          "name": "IRQ、tick与堆",
+          "files": "bk7258_irq.c、bk7258_timerisr.c、bk7258_allocateheap.c",
+          "basis": "复用NuttX/SDK及公开节拍实现",
+          "project_work": "核对时钟/堆边界与当前配置"
+        },
+        {
+          "name": "Mailbox与RPTUN",
+          "files": "bk7258_rptun.c、bk7258_rptun_mbox.c",
+          "basis": "已有RPTUN/RPMsg及Mailbox基础",
+          "project_work": "维护两侧配置和资源合同"
+        },
+        {
+          "name": "SDK与OS边界",
+          "files": "bk7258_sdk_runtime.c、bk7258_sdk_irq.c、bk7258_os_adapt.c",
+          "basis": "固定SDK与已有兼容层",
+          "project_work": "维持ABI、执行上下文和依赖边界"
+        },
+        {
+          "name": "串口与诊断输出",
+          "files": "bk7258_serial.c、bk7258_lowputc.c",
+          "basis": "已有串口/console基础",
+          "project_work": "作为启动、跨核和媒体证据入口"
+        },
+        {
+          "name": "跨域服务与文件接口",
+          "files": "bk7258_rpmsgfs.c、bk7258_wifi_control.c",
+          "basis": "已有跨域基础接口",
+          "project_work": "维护服务接入和错误传播，具体能力按配置核查"
+        },
+        {
+          "name": "共享电源和镜像合同",
+          "files": "bk7258_pm_activity.c、bk7258_ota_rpmsg.c、bk7258_boot_slot.c",
+          "basis": "已有共享协议/布局定义",
+          "project_work": "产品退出与交付配置基于该层"
+        }
+      ]
+    },
+    {
+      "key": "headers",
+      "directory": "chips/bk7258/include",
+      "responsibility_groups": 4,
+      "source_config_files": 95,
+      "groups": [
+        {
+          "name": "处理器与共享内存",
+          "files": "bk7258_amp.h、bk7258_ap_lifecycle.h",
+          "basis": "平台ABI定义",
+          "project_work": "配合CP/AP配置核对内存和角色"
+        },
+        {
+          "name": "设备子系统接口",
+          "files": "bk7258_aud.h、bk7258_dvp.h等",
+          "basis": "已有驱动声明",
+          "project_work": "随具体驱动适配维护合同"
+        },
+        {
+          "name": "资源、电源与存储接口",
+          "files": "bk7258_storage_guard.h、bk7258_pm.h",
+          "basis": "已有类型及约束",
+          "project_work": "同步QUIESCE等新增用途的声明和边界"
+        },
+        {
+          "name": "镜像与SDK契约",
+          "files": "bk7258_image_layout.h、bk7258_mcuboot_format.h",
+          "basis": "固定布局/格式基础",
+          "project_work": "用于构建与交付一致性检查"
+        }
+      ]
+    },
+    {
+      "key": "boot",
+      "directory": "chips/bk7258/bootloader",
+      "responsibility_groups": 3,
+      "source_config_files": 34,
+      "groups": [
+        {
+          "name": "早期运行条件",
+          "files": "start.S、boot_clock.c、boot_runtime.c",
+          "basis": "已有BootROM/SDK及启动实现",
+          "project_work": "保留当前direct启动的时钟、内存和运行合同"
+        },
+        {
+          "name": "Flash与载入",
+          "files": "boot_main.c、boot_flash.c、bootloader.ld",
+          "basis": "已有Flash/链接基础",
+          "project_work": "核对CP/AP镜像位置与加载边界"
+        },
+        {
+          "name": "镜像策略与完整性",
+          "files": "boot_bl1_policy.c、boot_bl1_manifest.c、boot_sha256.c",
+          "basis": "已有镜像处理与校验代码",
+          "project_work": "当前交付按实际入口核查"
+        }
+      ]
+    },
+    {
+      "key": "board",
+      "directory": "boards/bk7258/aidk_ai_toy",
+      "responsibility_groups": 5,
+      "source_config_files": 34,
+      "groups": [
+        {
+          "name": "器件与引脚",
+          "files": "include/bk7258_board_config.h",
+          "basis": "固定公开板定义；可见差别仅注释",
+          "project_work": "沿用R1实际映射"
+        },
+        {
+          "name": "初始化与注册",
+          "files": "src/bk7258_board_bringup.c",
+          "basis": "已有board bring-up",
+          "project_work": "接入可选诊断、显示任务和vision_badge RPC及错误统计"
+        },
+        {
+          "name": "按键与产品控制",
+          "files": "src/bk7258_aidk_buttons.c",
+          "basis": "已有GPIO轮询骨架",
+          "project_work": "三键映射、十档音量和三秒电源交互，关联bd64b12、2e1ad19"
+        },
+        {
+          "name": "LCD与图形验证",
+          "files": "src/bk7258_aidk_eye.c、src/bk7258_aidk_eye_status.c",
+          "basis": "已有屏幕驱动/图形库",
+          "project_work": "固定LVGL组件接入与状态反馈，属于适配证据"
+        },
+        {
+          "name": "成对配置与分区",
+          "files": "configs/、openvela.conf、分区CSV",
+          "basis": "板型与构建规则基础",
+          "project_work": "维护CP power/AP product配对、功能选择和分区身份"
+        }
+      ]
+    },
+    {
+      "key": "application",
+      "directory": "app/vision_badge",
+      "responsibility_groups": 7,
+      "source_config_files": 46,
+      "groups": [
+        {
+          "name": "命令与跨核业务",
+          "files": "vision_badge_main.c、vision_badge_rpc.c",
+          "basis": "复用NSH与RPMsg框架",
+          "project_work": "产品命令、请求关联和跨核派发"
+        },
+        {
+          "name": "会话控制",
+          "files": "agora_control.c、agora_service.c",
+          "basis": "复用RTC SDK与Audio接口",
+          "project_work": "同场观察、取消/退出、租约与错误清理"
+        },
+        {
+          "name": "相机服务",
+          "files": "camera_service.c",
+          "basis": "复用Video与GC2145/DVP",
+          "project_work": "热相机单owner、新帧/归还、超时和有界恢复"
+        },
+        {
+          "name": "音频服务",
+          "files": "audio_service.c",
+          "basis": "复用NuttX Audio",
+          "project_work": "采集/播放准备、资源释放、PCM音量和连续性合同"
+        },
+        {
+          "name": "语音唤醒入口",
+          "files": "wake_service.c、wake_asr_udp.c",
+          "basis": "复用固定ASR及网络接口",
+          "project_work": "有界PCM传输、文本匹配和资源owner交接"
+        },
+        {
+          "name": "电源与设置",
+          "files": "power_service.c、agora_control.c",
+          "basis": "复用底层PM/存储能力",
+          "project_work": "退出排空、音量记录、开关机协调"
+        },
+        {
+          "name": "状态与流程反馈",
+          "files": "feedback_service.c、workflow.c",
+          "basis": "复用board反馈接口",
+          "project_work": "统一产品阶段；图形仅作为板级状态显示"
+        }
+      ]
+    },
+    {
+      "key": "integration",
+      "directory": "nuttx",
+      "responsibility_groups": 3,
+      "source_config_files": 11,
+      "groups": [
+        {
+          "name": "LCD设备覆盖",
+          "files": "drivers/lcd/、include/nuttx/lcd/",
+          "basis": "复用NuttX设备框架及公开器件实现",
+          "project_work": "R1显示所需GC9D01接口集成"
+        },
+        {
+          "name": "其他可选器件接口",
+          "files": "drivers/sensors/、drivers/contactless/、drivers/input/",
+          "basis": "已有可选器件实现/声明",
+          "project_work": "保留构建闭包，是否启用按当前配置，不计入产品功能清单"
+        },
+        {
+          "name": "依赖身份",
+          "files": "dependencies.lock.json",
+          "basis": "固定上游框架",
+          "project_work": "跟踪实际依赖树与覆盖范围"
+        }
+      ]
+    },
+    {
+      "key": "tools",
+      "directory": "tools",
+      "responsibility_groups": 5,
+      "source_config_files": 113,
+      "groups": [
+        {
+          "name": "构建与布局",
+          "files": "bk7258/bk7258.py、bk7258/_lib/",
+          "basis": "已有构建/镜像机制与依赖闭包",
+          "project_work": "成对配置、层级/布局和输入身份追踪"
+        },
+        {
+          "name": "依赖恢复",
+          "files": "restore_workspace.py、lvgl_dependency.py",
+          "basis": "固定Git/SDK/工具链与组件",
+          "project_work": "复原目录映射、校验依赖和兼容差分"
+        },
+        {
+          "name": "语音会话服务",
+          "files": "agora/session_server.py",
+          "basis": "复用语音平台API",
+          "project_work": "设备控制、租约与工具请求生命周期"
+        },
+        {
+          "name": "视觉与唤醒服务",
+          "files": "agora/scene_relay.py、agora/local_asr_wake.py",
+          "basis": "MiMo/GLM API和固定ASR引擎",
+          "project_work": "场景目标、结果限制、音频传输与唤醒接入"
+        },
+        {
+          "name": "针对性验证",
+          "files": "agora/run-offline-checks.sh、bk7258/test_*",
+          "basis": "标准测试与编译工具",
+          "project_work": "真实实现/负向场景检查，硬件边界与结果单独记录"
+        }
+      ]
+    }
+  ]
+}

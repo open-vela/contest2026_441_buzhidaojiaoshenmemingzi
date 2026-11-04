@@ -1,0 +1,5 @@
+{
+  "base_url": "https://provider.example/v1/chat/completions",
+  "api_key": "REPLACE_WITH_VOICE_LLM_API_KEY",
+  "model": "REPLACE_WITH_VOICE_LLM_MODEL"
+}

@@ -1,44 +1,81 @@
-# 基于 OpenVela 的视障随行视觉辅助胸牌
+# 视障随行视觉辅助胸牌
 
-2026 首届 openvela AI 硬件开发者大赛 · 队伍 441「不知道叫什么名字」· 新硬件平台适配
+面向陌生室内场景的语音视觉辅助原型，基于BK7258 R1与openvela构建。
 
-本作品面向具有独立出行能力的视障用户，用免手持胸牌帮助用户在车站、校园、医院、商场等区域识别入口、门牌、站点标识和公共设施信息。BK7258 R1 的 CP 与 AP 均适配到 OpenVela/NuttX：物理 CPU0 运行 CP 系统，物理 CPU1、CPU2 运行 AP SMP 系统。当前原型通过 KEY1 短按采集图像，经 Wi-Fi 向 MiMo 发起视觉问答并输出中文识别结果，双屏 LCD 显示眨眼动画。
+用户可以用语音或按键开启交互，询问眼前的入口、门牌、标识和公共设施。设备获取当前场景的新照片，经服务端调用视觉模型理解后，在同一场语音对话中回答；用户可继续提问或换个方向再看一次。胸牌补充可见环境的语义信息，与日常出行辅助工具配合使用。
 
-![BK7258 R1 系统架构](submission/系统架构图.png)
+## 产品交互
 
-## 作品能力
-
-| 模块 | 实现与验证 |
+| 能力 | 使用方式 |
 | --- | --- |
-| 多核系统 | CP/AP OpenVela 启动；AP READY、RPTUN CONNECTED、CPU2 SCHEDULER_ONLINE、AP SMP PASSED 均有实机串口记录 |
-| 视觉交互 | KEY1 短按或 NSH 命令触发 GC2145 JPEG 采集、MiMo HTTPS 查询与跨核结果返回 |
-| 显示 | 两块 GC9D01 圆屏运行眼睛动画，硬件照片和启动日志保留在仓库 |
-| 存储与网络 | SD 数据链路和 Wi-Fi DHCP 成功记录已保存；构建镜像和分区附 SHA256 |
+| 开启对话 | 开机就绪后，短按中键或说出唤醒词 |
+| 语音问答 | 围绕当前需要了解的信息自然提问 |
+| 按需观察 | 说“帮我看看前面有什么”，获取一张新照片并语音回答 |
+| 连续观察 | 换个拍摄方向说“现在再看一眼”，在原会话中获取新画面 |
+| 退出与音量 | 中键短按退出，左右键调整十档音量；默认五档并保存手动选择 |
+| 电源控制 | 中键长按三秒控制开关机 |
 
-r14 实机记录中，KEY1 触发的一次查询得到 21,099 字节 JPEG 和 81 字节中文结果，状态为 `stage=done status=0`；NSH 触发的另一次查询同样完成。证据见 [实机证据](evidence/final/README.md)。
+视觉回答围绕用户当前目标，优先给出位置线索、标识文字和关键物体信息。MiMo为主要视觉模型，GLM为可选辅助后端；通过配置显式选择，不进行隐式切换。
 
-## 源码结构
+## 系统架构
+
+```mermaid
+flowchart LR
+  U[用户：语音 / 按键]
+  subgraph Device[BK7258 R1 · openvela]
+    CP[CP：按键、电源与跨核控制]
+    AP[AP SMP：产品服务与媒体管理]
+    Camera[相机：当前场景新帧]
+    Audio[音频：采音与播放]
+    CP <-->|RPMsg| AP
+    AP <--> Camera
+    AP <--> Audio
+  end
+  Server[服务端：唤醒识别、会话管理、视觉中继]
+  Voice[云端语音会话服务]
+  Vision[视觉模型：MiMo为主 / GLM为辅]
+  U --> CP
+  U <--> Audio
+  AP <-->|控制 / 新图像| Server
+  Audio <--> Voice
+  Audio -->|待唤醒音频| Server
+  Server <--> Voice
+  Server <--> Vision
+```
+
+设备端负责采集、播放、按键、电源与资源生命周期；服务端负责唤醒识别、会话网关及视觉中继，可部署在具备相应运行环境的主机上。物理CPU0运行CP openvela/NuttX，物理CPU1和CPU2组成一个AP SMP实例。
+
+## 选题与平台适配
+
+作品以新硬件平台适配和应用集成为技术主线：完成R1的CP/AP配置与系统集成、跨核控制、标准Audio/Video接口接入，以及语音和新图像在同一业务中的资源协调。
+
+LCD与LVGL用于显示驱动及openvela图形组件适配验证，属于平台覆盖范围，不作为视障用户的产品交互功能。芯片/板级/应用各层的基础代码与本项目适配、功能修改分别见[模块与贡献说明](docs/porting/README.md)。
+
+## 目录导航
 
 | 目录 | 内容 |
 | --- | --- |
-| `chips/bk7258/` | CPU0/AP/CPU2 启动、IRQ、时钟、RPTUN 及芯片驱动 |
-| `boards/bk7258/` | R1 板级绑定、CP/AP 配置、外设注册和分区 |
-| `nuttx/` | 本板 BSP 使用的 NuttX 覆盖文件 |
-| `app/vision_badge/` | Camera、MiMo、跨核 RPC 与按键交互应用 |
-| `app/bsp_diag/` | AP/RPTUN/SMP、Wi-Fi 诊断命令 |
-| `tools/bk7258/` | 构建、布局校验与镜像打包工具 |
+| `chips/bk7258/` | CP/AP启动、多核、跨核通信与芯片侧驱动 |
+| `boards/bk7258/` | 板级器件、引脚、配置、分区及初始化 |
+| `app/vision_badge/` | 对话、观察、音频、唤醒、三键和电源服务 |
+| `app/bsp_diag/` | 平台状态与基础诊断 |
+| `tools/agora/` | 服务端会话、ASR与视觉中继 |
+| `tools/bk7258/`、`config/` | 固定依赖、构建与镜像检查 |
+| `docs/` | 面向使用者和开发者的架构、运行及适配说明 |
+| `evidence/` | 按验证主题组织的版本、系统与媒体记录 |
 
-## 构建与验证
+## 构建与运行
 
-在完整的 OpenVela Linux 工作区执行：
+1. 在Ubuntu准备openvela工作区、固定依赖、工具链与SDK，仓库目录名保持不变。
+2. 使用`team441_cp_power`与`team441_ap_product`成对配置，通过`tools/bk7258/bk7258.py`构建并检查镜像；按分区烧录，保留校准与用户数据。
+3. 配置并启动服务端，为设备配置网络与鉴权；设备就绪后通过中键或唤醒开始使用。
 
-```bash
-cd /home/alientek/ov441_ws/team-repo
-python3 tools/bk7258/bk7258.py build \
-  --board aidk_ai_toy --boot direct --jobs 8 \
-  --workspace /home/alientek/ov441_ws
-```
+完整步骤和参数见[构建与运行](docs/build-and-run.md)，服务端职责见[服务端部署](docs/server.md)，系统关系见[系统架构](docs/architecture.md)。
 
-[构建与提交指南](docs/构建与提交指南.md)给出配置、分区及验收步骤。[r14 构建清单和实机记录](evidence/final/README.md)记录镜像哈希、烧录、KEY1 与 NSH 查询结果。技术报告采用赛事官方 Word 模板，见 [技术报告 DOCX](submission/技术报告-BK7258-R1-视觉辅助胸牌.docx)及[PDF](submission/技术报告-BK7258-R1-视觉辅助胸牌.pdf)。
+## 开发与验证
 
-本仓遵循 Apache-2.0；各源文件保留相应许可证声明。
+开发规则和Review流程见[CONTRIBUTING](CONTRIBUTING.md)，具体问题的分析、修改与检查见[开发案例](docs/development-cases.md)。[平台适配Skill](.agents/skills/bk7258-openvela-porting/SKILL.md)提供板型输入、接口合同和交付审查流程。
+
+## 许可证
+
+本项目代码采用[Apache-2.0](LICENSE)，第三方框架、SDK和公开基础的版权头及许可证保持，详见[组件声明](THIRD_PARTY_NOTICES.md)。

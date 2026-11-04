@@ -7,3 +7,8 @@ Kconfig text eol=lf
 Makefile text eol=lf
 Make.defs text eol=lf
 defconfig text eol=lf
+
+# Keep byte-bound fixtures stable across checkout platforms.
+*.inc -text
+tools/bk7258/test_wake_backends.py -text
+logs/**/*.jsonl -text

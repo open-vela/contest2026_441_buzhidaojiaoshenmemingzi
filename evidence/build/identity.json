@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "record_type": "selected-structured-verification-record",
+  "upstream_record_sha256": "1868072616a49371ec463616696903141e85df83d86aff838db606bd48b04bbb",
+  "target": {
+    "board_family": "bk7258",
+    "physical_board": "aidk_ai_toy"
+  },
+  "manifest_format": "bk7258.build-manifest/3",
+  "source": {
+    "source_commit": "e01f7dbe287f3aa5aa8b0a2c6273f341a811c95e",
+    "dirty": true,
+    "input_tree_sha256": "4431bd71a0b80edac8f98e9b2ba2c4d20763df0c0b0138e6d23c60c34bb72e30",
+    "input_count": 486
+  },
+  "configuration_pair": {
+    "cp": "team441_cp_power",
+    "ap": "team441_ap_product"
+  },
+  "images": {
+    "ap": {
+      "sha256": "2b2301fd1ebef4d456cee11587e83afff5472067cabf56d3082e9ca5b1e185cc",
+      "size": 1502596
+    },
+    "boot": {
+      "sha256": "c87852b82ead29ee09cccc0bc4dba2b940206af50d0e0bb580146fe80f9be659",
+      "size": 3808
+    },
+    "cp": {
+      "sha256": "152cb7d6fe4f9cb503ec354adab18ac3d62cf2598fffab7ccd940c5f746269ec",
+      "size": 931906
+    },
+    "pair": {
+      "sha256": "c13729d3620c4284d148dfca87403331c0adfe38aa0768ba721b0a1f87dabd80",
+      "size": 2854912
+    }
+  },
+  "semantics": "Direct CP/AP delivery; baseline plus exact dirty source inputs. Image identity is separate from hardware behavior."
+}

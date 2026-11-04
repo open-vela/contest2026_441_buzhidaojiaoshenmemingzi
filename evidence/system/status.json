@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "record_type": "selected-structured-verification-record",
+  "upstream_record_sha256": "ed3ae41ab6b1908b783e632c84588fd9e046e9716113e03c522b3482136c305a",
+  "scope": "CP/AP online, cross-core and supervision excerpts",
+  "records": [
+    {
+      "record_id": "record-03",
+      "raw_record_sha256": "7292de3ff83fe04d1852445c3e644b5142174d0b3a10e4eceff0b55887e6d28f",
+      "selected_lines": [
+        {
+          "source_line": 3,
+          "text": "vision_badge: wake enabled=1 busy=1 retained=0 error=0 responses=2463 dropped=0 gaps=0 triggers=0 poll_max_ms=11 raw_peak=32767 test=0 backend=lan-asr transport=udp retries=0 wait_ms=0 last=0 (ret=0)"
+        },
+        {
+          "source_line": 7,
+          "text": "vision_badge: wake enabled=1 busy=1 retained=0 error=0 responses=2484 dropped=0 gaps=0 triggers=0 poll_max_ms=11 raw_peak=32767 test=0 backend=lan-asr transport=udp retries=0 wait_ms=0 last=0 (ret=0)"
+        },
+        {
+          "source_line": 11,
+          "text": "vision_badge: wake enabled=1 busy=1 retained=0 error=0 responses=2505 dropped=0 gaps=0 triggers=0 poll_max_ms=11 raw_peak=32767 test=0 backend=lan-asr transport=udp retries=0 wait_ms=0 last=0 (ret=0)"
+        }
+      ]
+    }
+  ]
+}

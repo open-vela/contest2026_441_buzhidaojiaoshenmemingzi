@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "record_type": "selected-structured-verification-record",
+  "upstream_record_sha256": "90a5bc731713751ebb52d1feefde426f956f9d661bde0bd08b49e0f4d6e14e93",
+  "scope": "isolated-source-restoration-not-clean-full-build",
+  "team_repository": {
+    "source_commit": "e01f7dbe287f3aa5aa8b0a2c6273f341a811c95e",
+    "dirty": true,
+    "input_tree_sha256": "4431bd71a0b80edac8f98e9b2ba2c4d20763df0c0b0138e6d23c60c34bb72e30",
+    "input_count": 486
+  },
+  "apps_integration": {
+    "source_commit": "dcc6a95c3b323e533c98fde8fb209f99e24f0fdd",
+    "dirty": true,
+    "input_tree_sha256": "06f2d4cb887e894ed0cc0bcd98924170b0feab8130ecfa56ed2c24b92628e910",
+    "input_count": 4
+  },
+  "kernel_reference": {
+    "source_commit": "76354c637858ecb0aa4601629327acb6f44a26bb",
+    "dirty": false,
+    "input_tree_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "input_count": 0
+  },
+  "current_source_inputs_unchanged": true,
+  "firmware_and_selector_unchanged": true
+}

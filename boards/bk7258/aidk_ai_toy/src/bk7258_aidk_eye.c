@@ -22,13 +22,31 @@
 #include <nuttx/kthread.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/semaphore.h>
+#ifdef CONFIG_CONTEST2026_441_POWER
+#  include <nuttx/signal.h>
+#  include <nuttx/mutex.h>
+#endif
 
 #include <arch/board/board.h>
 
 #include "bk7258_aidk_eye_assets.h"
+#ifdef CONFIG_BK7258_AIDK_EYE_LVGL_STATUS
+#  include "bk7258_aidk_eye_status.h"
+#endif
 
-#define AIDK_EYE_STACKSIZE       4096
-#define AIDK_EYE_PRIORITY        100
+#ifdef CONFIG_BK7258_AIDK_EYE_LVGL_STATUS
+#  define AIDK_EYE_STACKSIZE     8192
+#else
+#  define AIDK_EYE_STACKSIZE     4096
+#endif
+#if defined(CONFIG_CONTEST2026_441_WAKE) || defined(CONFIG_CONTEST2026_441_AGORA)
+/* Reuse the wake profile's existing display priority for RTC, too. CPU0
+ * runs RPC/lease99 and the camera consumer98; a full panel redraw must not
+ * preempt either after activity feedback posts this worker's semaphore. */
+#  define AIDK_EYE_PRIORITY       90
+#else
+#  define AIDK_EYE_PRIORITY      100
+#endif
 #define AIDK_EYE_PANEL_PIXELS    BK7258_BOARD_LCD_WIDTH
 #define AIDK_EYE_FRAME_ROWS      BK7258_BOARD_LCD_HEIGHT
 #define AIDK_EYE_OPEN_MS         2600
@@ -44,6 +62,15 @@ extern int bk7258_aidk_dual_lcd_pair_putrun(unsigned int row,
                                              size_t npixels);
 
 static sem_t g_aidk_eye_wake = SEM_INITIALIZER(0);
+#ifdef CONFIG_CONTEST2026_441_POWER
+static bool g_eye_power_requested = true;
+static bool g_eye_power_applied = true;
+static int g_eye_power_error;
+static unsigned int g_eye_power_request_sequence;
+static unsigned int g_eye_power_ack_sequence;
+static mutex_t g_eye_power_lock = NXMUTEX_INITIALIZER;
+extern int bk7258_aidk_dual_lcd_power(bool enabled);
+#endif
 static volatile enum bk7258_aidk_eye_state_e g_aidk_eye_state =
   BK7258_AIDK_EYE_IDLE;
 static bool g_aidk_eye_started;
@@ -226,6 +253,22 @@ static int aidk_eye_render(
       return -EINVAL;
     }
 
+  clock_t render_started = clock_systime_ticks();
+
+#ifdef CONFIG_BK7258_AIDK_EYE_LVGL_STATUS
+  /* Keep LVGL on this one owner thread, alongside the existing row writes. */
+  static bool status_reported;
+  int status_result = bk7258_aidk_eye_status_render((unsigned int)state);
+  bool status_ready = status_result == 0;
+  if (!status_reported)
+    {
+      syslog(status_ready ? LOG_INFO : LOG_ERR,
+             "AIDK EYE LVGL render result=%d (hardware display unverified)\n",
+             status_result);
+      status_reported = true;
+    }
+#endif
+
   for (row = 0; row < AIDK_EYE_FRAME_ROWS; row++)
     {
       FAR const uint8_t *source =
@@ -251,6 +294,14 @@ static int aidk_eye_render(
             }
         }
 
+#ifdef CONFIG_BK7258_AIDK_EYE_LVGL_STATUS
+      if (status_ready && row >= 116u && row < 116u + AIDK_STATUS_HEIGHT)
+        {
+          const uint16_t *status = bk7258_aidk_eye_status_row(row - 116u);
+          memcpy(fb0, status, sizeof(fb0));
+          memcpy(fb1, status, sizeof(fb1));
+        }
+#endif
       ret = bk7258_aidk_dual_lcd_pair_putrun(row, fb0, fb1,
                                               AIDK_EYE_PANEL_PIXELS);
       if (ret < 0)
@@ -259,6 +310,17 @@ static int aidk_eye_render(
         }
     }
 
+  /* At most one sample per state per boot; only this owner renders.
+   * Wall time includes preemption and panel writes, not pure CPU time. */
+  static uint32_t reported_states;
+  unsigned int slot = (unsigned int)state;
+  if (slot <= BK7258_AIDK_EYE_ERROR && !(reported_states & (1u << slot)))
+    {
+      reported_states |= 1u << slot;
+      syslog(LOG_INFO, "AIDK EYE frame state=%u elapsed=%lu ms priority=%d\n",
+             slot, (unsigned long)TICK2MSEC(clock_systime_ticks() - render_started),
+             AIDK_EYE_PRIORITY);
+    }
   return OK;
 }
 
@@ -267,7 +329,11 @@ static bool aidk_eye_wait_while(enum bk7258_aidk_eye_state_e expected,
 {
   (void)nxsem_tickwait_uninterruptible(&g_aidk_eye_wake,
                                         MSEC2TICK(milliseconds));
-  return __atomic_load_n(&g_aidk_eye_state, __ATOMIC_ACQUIRE) == expected;
+  return __atomic_load_n(&g_aidk_eye_state, __ATOMIC_ACQUIRE) == expected
+#ifdef CONFIG_CONTEST2026_441_POWER
+    && __atomic_load_n(&g_eye_power_requested, __ATOMIC_ACQUIRE)
+#endif
+    ;
 }
 
 static int aidk_eye_worker(int argc, FAR char *argv[])
@@ -281,6 +347,22 @@ static int aidk_eye_worker(int argc, FAR char *argv[])
   syslog(LOG_INFO, "AIDK EYE START vendor dual-eye animation\n");
   for (;;)
     {
+#ifdef CONFIG_CONTEST2026_441_POWER
+      unsigned int sequence = __atomic_load_n(&g_eye_power_request_sequence, __ATOMIC_ACQUIRE);
+      bool enabled = __atomic_load_n(&g_eye_power_requested, __ATOMIC_ACQUIRE);
+      if (sequence != __atomic_load_n(&g_eye_power_ack_sequence, __ATOMIC_ACQUIRE))
+        {
+          int power_ret = bk7258_aidk_dual_lcd_power(enabled);
+          __atomic_store_n(&g_eye_power_error, power_ret, __ATOMIC_RELEASE);
+          __atomic_store_n(&g_eye_power_applied, enabled, __ATOMIC_RELEASE);
+          __atomic_store_n(&g_eye_power_ack_sequence, sequence, __ATOMIC_RELEASE);
+        }
+      if (!enabled || __atomic_load_n(&g_eye_power_error, __ATOMIC_ACQUIRE) < 0)
+        {
+          (void)nxsem_wait_uninterruptible(&g_aidk_eye_wake);
+          continue;
+        }
+#endif
       state = __atomic_load_n(&g_aidk_eye_state, __ATOMIC_ACQUIRE);
       switch (state)
         {
@@ -347,6 +429,28 @@ static int aidk_eye_worker(int argc, FAR char *argv[])
     }
 }
 
+#ifdef CONFIG_CONTEST2026_441_POWER
+int bk7258_aidk_eye_power(bool enabled)
+{
+  clock_t started = clock_systime_ticks();
+  if (!g_aidk_eye_started) return -EAGAIN;
+  int ret = nxmutex_lock(&g_eye_power_lock);
+  if (ret < 0) return ret;
+  __atomic_store_n(&g_eye_power_requested, enabled, __ATOMIC_RELEASE);
+  unsigned int sequence = __atomic_add_fetch(&g_eye_power_request_sequence, 1u, __ATOMIC_ACQ_REL);
+  nxsem_post(&g_aidk_eye_wake);
+  while (__atomic_load_n(&g_eye_power_ack_sequence, __ATOMIC_ACQUIRE) != sequence)
+    {
+      if ((clock_t)(clock_systime_ticks() - started) >= MSEC2TICK(2000))
+        { nxmutex_unlock(&g_eye_power_lock); return -ETIMEDOUT; }
+      nxsig_usleep(5000);
+    }
+  ret = __atomic_load_n(&g_eye_power_error, __ATOMIC_ACQUIRE);
+  nxmutex_unlock(&g_eye_power_lock);
+  return ret;
+}
+#endif
+
 int bk7258_aidk_eye_set_state(enum bk7258_aidk_eye_state_e state)
 {
   enum bk7258_aidk_eye_state_e previous;
@@ -412,8 +516,8 @@ int bk7258_aidk_eye_initialize(void)
 #endif
 
   g_aidk_eye_started = true;
-  syslog(LOG_INFO, "AIDK EYE SCHEDULED pid=%d source=vendor-genie-eye\n",
-         pid);
+  syslog(LOG_INFO, "AIDK EYE SCHEDULED pid=%d source=vendor-genie-eye priority=%d\n",
+         pid, AIDK_EYE_PRIORITY);
   return OK;
 }
 

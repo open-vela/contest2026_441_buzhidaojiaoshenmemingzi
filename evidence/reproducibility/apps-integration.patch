@@ -1,0 +1,84 @@
+diff --git a/netutils/libwebsockets/CMakeLists.txt b/netutils/libwebsockets/CMakeLists.txt
+index a6ba436..162d1ac 100644
+--- a/netutils/libwebsockets/CMakeLists.txt
++++ b/netutils/libwebsockets/CMakeLists.txt
+@@ -150,7 +150,6 @@ if(CONFIG_NETUTILS_LIBWEBSOCKETS)
+       ${LIBWEBSOCKETS_DIR}/lib/roles/raw-file/ops-raw-file.c
+       ${LIBWEBSOCKETS_DIR}/lib/roles/http/client/client-http.c
+       ${LIBWEBSOCKETS_DIR}/lib/event-libs/poll/poll.c
+-      ${LIBWEBSOCKETS_DIR}/lib/event-libs/libuv/libuv.c
+       ${LIBWEBSOCKETS_DIR}/lib/tls/tls.c
+       ${LIBWEBSOCKETS_DIR}/lib/tls/tls-network.c
+       ${LIBWEBSOCKETS_DIR}/lib/tls/tls-sessions.c
+@@ -162,6 +161,14 @@ if(CONFIG_NETUTILS_LIBWEBSOCKETS)
+       ${LIBWEBSOCKETS_DIR}/lib/tls/mbedtls/mbedtls-session.c
+       ${LIBWEBSOCKETS_DIR}/lib/tls/mbedtls/mbedtls-client.c)
+ 
++  if(CONFIG_LIBUV)
++    list(APPEND CSRCS ${LIBWEBSOCKETS_DIR}/lib/event-libs/libuv/libuv.c)
++  endif()
++
++  if(NOT CONFIG_NETUTILS_LIBWEBSOCKETS_TLS)
++    list(FILTER CSRCS EXCLUDE REGEX "/lib/tls/")
++  endif()
++
+   if(CONFIG_NETUTILS_MQTTC)
+     list(APPEND INCDIR ${LIBWEBSOCKETS_DIR}/lib/roles/mqtt)
+     list(
+diff --git a/netutils/libwebsockets/Kconfig b/netutils/libwebsockets/Kconfig
+index ef08c2f..229b2e4 100644
+--- a/netutils/libwebsockets/Kconfig
++++ b/netutils/libwebsockets/Kconfig
+@@ -16,6 +16,12 @@ config NETUTILS_LIBWEBSOCKETS_TEST
+ 
+ if NETUTILS_LIBWEBSOCKETS
+ 
++config NETUTILS_LIBWEBSOCKETS_TLS
++	bool "Enable libwebsockets TLS backend"
++	default y
++	help
++		Disable only for explicitly configured local-network ws:// clients.
++
+ config NETUTILS_LIBWEBSOCKETS_VERSION
+ 	string "Version number"
+ 	default "4.3.1"
+diff --git a/netutils/libwebsockets/Makefile b/netutils/libwebsockets/Makefile
+index b378842..89c4d2d 100644
+--- a/netutils/libwebsockets/Makefile
++++ b/netutils/libwebsockets/Makefile
+@@ -120,8 +120,11 @@ CSRCS += \
+ 	$(LIBWEBSOCKETS_UNPACK)/lib/roles/raw-skt/ops-raw-skt.c \
+ 	$(LIBWEBSOCKETS_UNPACK)/lib/roles/raw-file/ops-raw-file.c \
+ 	$(LIBWEBSOCKETS_UNPACK)/lib/roles/http/client/client-http.c \
+-	$(LIBWEBSOCKETS_UNPACK)/lib/event-libs/poll/poll.c \
+-	$(LIBWEBSOCKETS_UNPACK)/lib/event-libs/libuv/libuv.c
++	$(LIBWEBSOCKETS_UNPACK)/lib/event-libs/poll/poll.c
++
++ifeq ($(CONFIG_LIBUV),y)
++CSRCS += $(LIBWEBSOCKETS_UNPACK)/lib/event-libs/libuv/libuv.c
++endif
+ 
+ CSRCS += \
+ 	$(LIBWEBSOCKETS_UNPACK)/lib/tls/tls.c \
+diff --git a/netutils/libwebsockets/lws_config.h b/netutils/libwebsockets/lws_config.h
+index d125b6d..b09e0f5 100644
+--- a/netutils/libwebsockets/lws_config.h
++++ b/netutils/libwebsockets/lws_config.h
+@@ -280,7 +280,7 @@
+ /* #undef LWS_WITH_SDEVENT */
+ #define LWS_WITH_LWSAC
+ #define LWS_LOGS_TIMESTAMP
+-#ifdef CONFIG_CRYPTO_MBEDTLS
++#if defined(CONFIG_CRYPTO_MBEDTLS) && defined(CONFIG_NETUTILS_LIBWEBSOCKETS_TLS)
+ #define LWS_WITH_MBEDTLS
+ #endif
+ /* #undef LWS_WITH_MINIZ */
+@@ -354,7 +354,7 @@
+ /* #undef LWS_WITH_SYS_NTPCLIENT */
+ #define LWS_WITH_SYS_STATE
+ /* #undef LWS_WITH_THREADPOOL */
+-#ifdef CONFIG_CRYPTO_MBEDTLS
++#if defined(CONFIG_CRYPTO_MBEDTLS) && defined(CONFIG_NETUTILS_LIBWEBSOCKETS_TLS)
+ #define LWS_WITH_TLS
+ /* #undef LWS_WITH_TLS_JIT_TRUST */
+ #define LWS_WITH_TLS_SESSIONS

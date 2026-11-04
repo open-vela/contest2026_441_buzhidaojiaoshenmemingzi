@@ -61,6 +61,7 @@
 #include <errno.h>
 #include <debug.h>
 #include <assert.h>
+#include <syslog.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
@@ -232,6 +233,16 @@ struct bk7258_mic_dev_s
   volatile bool     terminate;
   volatile bool     streaming;
   volatile uint32_t dma_isr_count;
+  /* Capture-worker observations, reset before spawning it and read only
+   * after joining. No logging or extra work in the DMA ISR. These expose
+   * loss below application queues; zero application gaps cannot prove
+   * that the ADC delivered a continuous stream.
+   */
+  uint32_t delivered_samples;
+  uint32_t dropped_samples;
+  uint32_t first_drop_sample;
+  uint32_t short_reads;
+  uint32_t max_ring_fill;
 
   /* Serialize the capture worker against pause/stop.  Once pause returns,
    * no buffer callback from the pre-pause stream remains in flight.
@@ -1085,6 +1096,10 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
       /* Only consume a frame once the DMA has actually landed one. */
 
       fill = ring_buffer_get_fill_size(&priv->ring);
+      if (fill > priv->max_ring_fill)
+        {
+          priv->max_ring_fill = fill;
+        }
       if (fill < BK7258_MIC_DMA_FRAME_BYTES)
         {
           nxmutex_unlock(&priv->worker_lock);
@@ -1093,6 +1108,10 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
 
       got = ring_buffer_read(&priv->ring, priv->scratch,
                              BK7258_MIC_DMA_FRAME_BYTES);
+      if (got != BK7258_MIC_DMA_FRAME_BYTES)
+        {
+          priv->short_reads++;
+        }
       if (got == 0)
         {
           nxmutex_unlock(&priv->worker_lock);
@@ -1118,6 +1137,11 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
            * than stalling the DMA and corrupting the stream timing.
            */
 
+          if (priv->dropped_samples == 0)
+            {
+              priv->first_drop_sample = priv->delivered_samples;
+            }
+          priv->dropped_samples += frames;
           audwarn("WARNING: no queued buffer, dropped %u frames\n", frames);
           nxmutex_unlock(&priv->worker_lock);
           continue;
@@ -1131,6 +1155,11 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
 
           if (frames > capacity)
             {
+              if (priv->dropped_samples == 0)
+                {
+                  priv->first_drop_sample = priv->delivered_samples;
+                }
+              priv->dropped_samples += frames - capacity;
               frames = capacity;
             }
 
@@ -1161,15 +1190,23 @@ static int bk7258_mic_capture_thread(int argc, char **argv)
         {
           if (got > apb->nmaxbytes)
             {
+              if (priv->dropped_samples == 0)
+                {
+                  priv->first_drop_sample = priv->delivered_samples;
+                }
+              priv->dropped_samples +=
+                (got - apb->nmaxbytes) / BK7258_MIC_FIFO_WORD_BYTES;
               got = apb->nmaxbytes;
             }
 
           memcpy(apb->samp, priv->scratch, got);
           apb->nbytes = got;
+          frames = got / BK7258_MIC_FIFO_WORD_BYTES;
         }
 
       apb->curbyte  = 0;
       apb->nsamples = frames;
+      priv->delivered_samples += frames;
 
       {
         bool final = (apb->flags & AUDIO_APB_FINAL) != 0;
@@ -1530,6 +1567,11 @@ static int bk7258_mic_start(struct audio_lowerhalf_s *dev)
     }
 
   priv->terminate = false;
+  priv->delivered_samples = 0;
+  priv->dropped_samples = 0;
+  priv->first_drop_sample = 0;
+  priv->short_reads = 0;
+  priv->max_ring_fill = 0;
   priv->streaming = true;
 
   /* Discard completions left over by the previous run, otherwise the new
@@ -1652,7 +1694,13 @@ static int bk7258_mic_stop(struct audio_lowerhalf_s *dev)
   priv->dev.upper(priv->dev.priv, AUDIO_CALLBACK_COMPLETE, NULL, OK);
 #endif
 
-  audinfo("Capture stopped\n");
+  syslog(LOG_INFO, "MIC capture samples=%" PRIu32 " dropped=%" PRIu32
+         " short_reads=%" PRIu32 " ring_max=%" PRIu32
+         " ring_bytes=%u irq=%" PRIu32 " first_drop_at=%" PRIu32 "\n",
+         priv->delivered_samples, priv->dropped_samples, priv->short_reads,
+         priv->max_ring_fill, (unsigned int)BK7258_MIC_RING_BYTES,
+         __atomic_load_n(&priv->dma_isr_count, __ATOMIC_ACQUIRE),
+         priv->first_drop_sample);
 
   return OK;
 }

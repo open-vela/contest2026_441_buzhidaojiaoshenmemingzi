@@ -1,3 +1,0 @@
-vision_badge status
-vision_badge: AP endpoint ready
-nsh> [K

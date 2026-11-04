@@ -1,0 +1,140 @@
+{
+  "schema": "r1-local-wake/1",
+  "dependencies": [
+    {
+      "path": "apps/mlearning/tflite-micro/tflite-micro",
+      "url": "https://github.com/open-vela/apps_mlearning_tflite-micro.git",
+      "commit": "f9d0f06b892b4626c83ae251eae1fa2fa6d67136",
+      "tree": "98666c1e3dd79618cd5c2316ccf1d3140e427741",
+      "name": "tflite-micro",
+      "license_file": "LICENSE"
+    },
+    {
+      "path": "apps/math/kissfft/kissfft",
+      "url": "https://github.com/open-vela/apps_math_kissfft.git",
+      "commit": "0786dc53845ee25d5a868fcfde81e0b79409dd94",
+      "tree": "7becb34b415be6ff53cb153d163b2616d558c3c9",
+      "name": "kissfft",
+      "license_file": "COPYING"
+    },
+    {
+      "path": "apps/system/flatbuffers/flatbuffers",
+      "url": "https://github.com/open-vela/apps_system_flatbuffers.git",
+      "commit": "9d3f52c65991ecc1383c67c173457c78b2661795",
+      "tree": "36c6f36257891d61fd70d299806f570bf2d54fdc",
+      "name": "flatbuffers",
+      "license_file": "LICENSE"
+    },
+    {
+      "path": "apps/math/gemmlowp/gemmlowp",
+      "url": "https://github.com/open-vela/apps_math_gemmlowp.git",
+      "commit": "8d4024ba28e645b62ddbe7de0672948e0da53366",
+      "tree": "a801323dc99e8d8755f02c1db3257ce5c76cd169",
+      "name": "gemmlowp",
+      "license_file": "LICENSE"
+    },
+    {
+      "path": "apps/math/ruy/ruy",
+      "url": "https://github.com/open-vela/apps_math_ruy.git",
+      "commit": "3c5f163d4ffeef4477dfc65370bfebb54a5d843a",
+      "tree": "3b8e25635e5ecac72cedb089eaa48be9ed169f67",
+      "name": "ruy",
+      "license_file": "LICENSE"
+    },
+    {
+      "path": "nuttx/libs/libxx/libcxx/libcxx",
+      "url": "https://github.com/open-vela/nuttx_libs_libxx_libcxx.git",
+      "commit": "fd9637e0fca4902c4c81c3d81cd386a1ccb9e4ef",
+      "tree": "1eb3c541da2af4debccd0babe2237eafce47637e",
+      "name": "libcxx",
+      "license_file": "LICENSE.TXT",
+      "source_patch": {
+        "path": "tools/bk7258/patches/libcxx-gcc10-traits.patch",
+        "sha256": "5c70b814c3de0ea04e54fefcff8a17f85956a717328bf1da43afd21bf176230b",
+        "files": {
+          "include/__type_traits/is_nothrow_assignable.h": {
+            "before": "750d09ad84cc754982e193ee75c8a696165873739f3b14e9359ad3962362af41",
+            "after": "f0d026ea8161d3584575cdcdcc053938e01b8db35b811f6c4870757a55115138"
+          },
+          "include/__type_traits/is_nothrow_copy_assignable.h": {
+            "before": "1a2ad9d4fd2c6f0b78170551a16fc37d6bb857d327b76a42ce21b99bd1454205",
+            "after": "3af7c743489d0f03e11bfbd4176aa9bf1f942e0f2b1383bec551915578f9dd6f"
+          },
+          "include/__type_traits/is_nothrow_move_assignable.h": {
+            "before": "3fb8501cdf6ae108248b5fee66a4244bf8ee6ece71cc0b3b97bcd03234af6b1c",
+            "after": "7d9ecaa9a1d9247ded888f8b3aa1005933c73072b7dbed55584a2a04ec32f019"
+          },
+          "include/__type_traits/is_nothrow_default_constructible.h": {
+            "before": "54aaa1cebab49c875e3664feec0039bc53b73870a1f17e210c8ba5d78cca0c5a",
+            "after": "568299011ff9f5049a7a5de8f8d506210726b42c48d76352ebade3857176d2b6"
+          },
+          "include/__bit/bit_cast.h": {
+            "before": "b234eaa0857739c5f60602715834d9b80f311e20e4c84787830db9e9dcb3077f",
+            "after": "33f8e825a93201a0ce71ea5471dd17bc189a1c587b3a3b64f622128efa3ddb00"
+          }
+        }
+      }
+    },
+    {
+      "path": "nuttx/libs/libxx/libcxxabi/libcxxabi",
+      "url": "https://github.com/open-vela/nuttx_libs_libxx_libcxxabi.git",
+      "commit": "9a428650210a1432233a0e7174eb6970f00f9ed2",
+      "tree": "b38e4350f7f1f12298634f8bc0b497fe8cd231a2",
+      "name": "libcxxabi",
+      "license_file": "LICENSE.TXT"
+    },
+    {
+      "path": "r1-ml/CMSIS-NN",
+      "url": "https://github.com/ARM-software/CMSIS-NN.git",
+      "commit": "72e1ebf623ab1660a3e14e4e36fdcddce46f1991",
+      "tree": "1da43318024a67241d76768510ccb4460e21a20b",
+      "name": "CMSIS-NN",
+      "license_file": "LICENSE",
+      "sparse_paths": [
+        "Source",
+        "Include",
+        "LICENSE"
+      ],
+      "source_patch": {
+        "path": "tools/bk7258/patches/cmsis-nn-defined-softmax-shift.patch",
+        "sha256": "002dc9bc7619e8815f928ddf5d4d191f989bdc43fb371aa3e7c3b2f46614c587",
+        "files": {
+          "Include/arm_nnsupportfunctions.h": {
+            "before": "27752f0135b51acfe6e77684322ff0b57fe88e23fe557abfe1f6c449c925f9e0",
+            "after": "472fbf1f0628c2f1503f567efffdfaf26c303851b250682cedbf0ba1f46ca759"
+          },
+          "Source/SoftmaxFunctions/arm_nn_softmax_common_s8.c": {
+            "before": "a332f2b1173efd2faf67ca11b83cc7eaaf196bd5391e8ce23b4d1dd79940e6cf",
+            "after": "c04a3a4e78513c3648b396237a9f6d0eafecb8a9bd0352db9cdfa3292a0203cf"
+          }
+        }
+      }
+    },
+    {
+      "path": "r1-ml/CMSIS_5",
+      "url": "https://github.com/ARM-software/CMSIS_5.git",
+      "commit": "e94a96201a97be3e84d3d6ef081d2f0f7db9b5fd",
+      "tree": "4cd3e82902017b7d82e395b00b7e8916322ef10e",
+      "name": "CMSIS_5",
+      "license_file": "LICENSE.txt",
+      "sparse_paths": [
+        "CMSIS/Core/Include",
+        "LICENSE.txt"
+      ]
+    }
+  ],
+  "candidate_model": {
+    "path": "r1-models/135-openvela-930d75a",
+    "url": "https://github.com/Embracecactus/contest2026_135_yongwangzhiqian.git",
+    "commit": "930d75ae34f215dcaf8707751d5e27cc59ec7ca9",
+    "tree": "ddcd49e66abb64d1ba58a532c5f30f1c93f9674a",
+    "files": {
+      "app/bk7258/models/nihao_openvela.tflite": "922eba9175fcda60f7c8a4505ca4eb5a97c86ceb30fbe48c685fd612098ac910",
+      "app/bk7258/models/nihao_openvela.metadata.json": "7bcc5ea32ea29b6120313a88a0932f0937779b16ab19365aacd1826c833db73f",
+      "SOURCE_PROVENANCE.md": "94926dcfb1ffaccbdd80a83f6507e8a95b70739a54501914cc989cab482bc311",
+      "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "model": "app/bk7258/models/nihao_openvela.tflite",
+    "metadata": "app/bk7258/models/nihao_openvela.metadata.json"
+  }
+}

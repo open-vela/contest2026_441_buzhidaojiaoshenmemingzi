@@ -1,0 +1,6 @@
+# Separate optional host venv; does not change the existing Agora runtime.
+sherpa-onnx==1.13.8
+numpy==2.2.6
+sentencepiece==0.2.1
+# Existing visual capture/host regression dependency, matching host-venv.
+Pillow==11.1.0
