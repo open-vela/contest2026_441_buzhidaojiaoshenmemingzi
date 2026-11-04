@@ -243,6 +243,19 @@ struct bk7258_wifi_sta_config_s
   uint8_t reserved[32];
 };
 
+/* wifi_linkstate_reason_t from the pinned short-enum SDK: the reason enum
+ * includes 256..262 and is therefore TWO bytes, not a byte-sized status.
+ */
+struct bk7258_wifi_link_reason_s
+{
+  uint8_t state;
+  uint16_t reason;
+};
+
+_Static_assert(offsetof(struct bk7258_wifi_link_reason_s, reason) == 2 &&
+               sizeof(struct bk7258_wifi_link_reason_s) == 4,
+               "v3.1.1.9 Wi-Fi link reason ABI changed");
+
 struct bk7258_wifi_monitor_channel_s
 {
   uint8_t primary;
@@ -338,6 +351,9 @@ _Static_assert(sizeof(struct bk7258_wifi_control_wire_s) <=
 #ifdef CONFIG_BK7258_AP_CORE
 extern int bk_wifi_sta_set_config(
   FAR const struct bk7258_wifi_sta_config_s *config);
+extern int bk_wifi_sta_get_config(FAR struct bk7258_wifi_sta_config_s *config);
+extern int bk_wifi_sta_get_linkstate_with_reason(
+  FAR struct bk7258_wifi_link_reason_s *info);
 extern int bk_wifi_sta_start(void);
 extern int bk_wifi_sta_stop(void);
 extern int bk_wifi_monitor_start(void);
@@ -1941,6 +1957,53 @@ static bool bk7258_wifi_local_cancelled(void)
          __atomic_load_n(&g_bk7258_wifi_control.local_cancel,__ATOMIC_ACQUIRE);
 }
 
+static int bk7258_wifi_verify_sta_config(
+  FAR const struct bk7258_wifi_control_wire_s *request)
+{
+  struct bk7258_wifi_sta_config_s actual;
+  size_t ssid_len;
+  size_t password_len;
+  bool matches;
+  int ret;
+
+  memset(&actual, 0, sizeof(actual));
+  ret = bk7258_wifi_vendor_result(bk_wifi_sta_get_config(&actual));
+  ssid_len = strnlen(actual.ssid, sizeof(actual.ssid));
+  password_len = strnlen(actual.password, sizeof(actual.password));
+  matches = ret == OK && ssid_len == request->ssid_len &&
+            password_len == request->password_len &&
+            memcmp(actual.ssid, request->ssid, request->ssid_len) == 0 &&
+            memcmp(actual.password, request->password,
+                   request->password_len) == 0;
+  explicit_bzero(&actual, sizeof(actual));
+  syslog(matches ? LOG_INFO : LOG_ERR,
+         "BK7258 WIFI: config verify ret=%d ssid_len=%u key_len=%u match=%u\n",
+         ret, (unsigned int)ssid_len, (unsigned int)password_len,
+         (unsigned int)matches);
+  return ret < 0 ? ret : (matches ? OK : -EIO);
+}
+
+static void bk7258_wifi_connect_diagnostic(int error,
+  FAR const struct bk7258_wifi_result_s *result, clock_t started)
+{
+  struct bk7258_wifi_link_reason_s reason = {0};
+  int ret = bk7258_wifi_vendor_result(
+    bk_wifi_sta_get_linkstate_with_reason(&reason));
+
+  /* Snapshot BEFORE our cleanup sends STA_STOP and changes the reason to
+   * "disconnect by application". This is one query, not periodic spam.
+   * A query failure is reported separately, never replaces the connect error.
+   */
+  syslog(LOG_WARNING,
+         "BK7258 WIFI: connect failed ret=%d link=%lu elapsed=%lu ms\n",
+         error, (unsigned long)result->link_state,
+         (unsigned long)TICK2MSEC(clock_systime_ticks() - started));
+  syslog(LOG_WARNING,
+         "BK7258 WIFI: vendor reason query=%d state=%u reason=%u\n",
+         ret, ret == OK ? (unsigned int)reason.state : 0,
+         ret == OK ? (unsigned int)reason.reason : 0);
+}
+
 static int bk7258_wifi_connect(
   FAR const struct bk7258_wifi_control_wire_s *request,
   FAR struct bk7258_wifi_result_s *result)
@@ -1970,6 +2033,12 @@ static int bk7258_wifi_connect(
   memcpy(config.ssid, request->ssid, request->ssid_len);
   memcpy(config.password, request->password, request->password_len);
   config.security = BK7258_WIFI_SECURITY_AUTO;
+  /* This OpenVela route stores credentials on SD-NAND, not EasyFlash.
+   * Always derive a fresh connection from these explicit credentials rather
+   * than restoring an old vendor BSSID/channel/PMK/IP fast-connect record.
+   * No forced WPA2 mode: AUTO must still support open/WPA3-capable networks.
+   */
+  config.no_auto_fci = 1;
 
   /* The official v3.1.1.9 API requires stop-before-restart.  In particular,
    * bk_wifi_sta_start() returns success without issuing another controller
@@ -2029,6 +2098,12 @@ static int bk7258_wifi_connect(
       return ret;
     }
 
+  ret = bk7258_wifi_verify_sta_config(request);
+  if (ret < 0)
+    {
+      return ret;
+    }
+
   ret = bk7258_wifi_vendor_result(bk_wifi_sta_start());
   if (ret < 0)
     {
@@ -2068,6 +2143,7 @@ static int bk7258_wifi_connect(
 
   if (ret < 0 && started_sta)
     {
+      bk7258_wifi_connect_diagnostic(ret, result, started);
       /* Leave a failed attempt stopped and carrier-down.  The next CONNECT
        * can then install new runtime credentials deterministically.
        */

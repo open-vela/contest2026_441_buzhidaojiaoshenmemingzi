@@ -89,3 +89,23 @@ if(CONFIG_BK7258_AIDK_DUAL_LCD)
       bk7258_aidk_eye.c
       bk7258_aidk_eye_assets.c)
 endif()
+
+if(CONFIG_BK7258_AIDK_EYE_LVGL_STATUS)
+  # The generic Apps wrapper may fetch an unlocked archive if LVGL is absent.
+  # Refuse that fallback for this candidate and require the recorded source.
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  get_filename_component(_r1_apps "${NUTTX_APPS_DIR}" REALPATH)
+  get_filename_component(_r1_workspace "${_r1_apps}" DIRECTORY)
+  get_filename_component(_r1_board_source "${CMAKE_CURRENT_LIST_DIR}" REALPATH)
+  get_filename_component(_r1_repository "${_r1_board_source}/../../../.." ABSOLUTE)
+  execute_process(
+    COMMAND ${Python3_EXECUTABLE} "${_r1_repository}/tools/lvgl_dependency.py"
+            --workspace "${_r1_workspace}"
+    RESULT_VARIABLE _r1_lvgl_result)
+  if(NOT _r1_lvgl_result EQUAL 0)
+    message(FATAL_ERROR "R1 LVGL dependency verification failed")
+  endif()
+  target_sources(board PRIVATE bk7258_aidk_eye_status.c)
+  target_include_directories(board PRIVATE
+    ${NUTTX_APPS_DIR}/graphics/lvgl)
+endif()

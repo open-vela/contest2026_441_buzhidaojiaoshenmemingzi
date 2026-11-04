@@ -1,57 +1,51 @@
 ---
 name: bk7258-openvela-porting
-description: Port BK7258 R1 to openvela/NuttX, synchronize the team-owned board/chip overlays, and review vision_badge hardware evidence. Use for R1 bring-up, driver integration, public-port evaluation, reproducible builds, and capability audits; not generic ARMINO/FreeRTOS apps.
+description: Review or plan BK7258 CP/AP openvela board integration, driver lifecycle contracts, and reproducible firmware handoff. Use for a BK7258 board bring-up, a same-chip board variation, a driver change, or a CP/AP export audit. Not a generic MCU flashing tool or proof of hardware operation.
 ---
 
-# BK7258 R1 openvela 移植
+# BK7258 openvela适配与交付审查
 
-以证据门禁推进 BK7258 R1 移植。公开 PR、厂商示例和相似开发板只作为候选参考，直到版本、许可证、评审状态、R1 硬件差异、构建和实机结果均已核对。
+把目标板的输入、系统角色、设备合同和交付证据连接起来。使用者提供自己的工作区、板型和版本；R1仅是可选案例，不是所有板的默认配置。
 
-## 路由
+## 输入与任务选择
 
-- 开始前阅读 [references/source-map.md](references/source-map.md)，确认资料权威级别和当前基线。
-- 宣称能力落地前阅读 [references/evidence-gates.md](references/evidence-gates.md)。
-- 当前终版以队伍仓内 `chips/bk7258/`、`boards/bk7258/`、`nuttx/` 和
-  `tools/bk7258/` 为固定 BSP 单元；构建前核对 `SOURCE_PROVENANCE.md`、本队
-  CP/AP 配置和 repo manifest，不再用旧 `sync-openvela-port.sh` 覆盖它们。
-- 审查本项目时运行 `python scripts/audit_project.py <项目根目录> --json`（脚本路径相对本 skill），再人工核对运行证据。退出 2 表示审查输入不完整，不是“没有问题”。
-- 新驱动优先沿用 NuttX/openvela 子系统骨架；仅将目标硬件常量和必要的底层适配带入板级代码。
+先阅读[输入矩阵](references/inputs.md)，从已有仓库与资料确定project_root、board、CP/AP配置、SDK/工具链版本及本次目标。缺失硬件事实记为unknown，不用R1常量补空。
 
-## 协作审查
+- **新板/同芯片变体**：输出差异矩阵、应改层级和按依赖排序的bring-up步骤。板级差异留board，通用芯片能力留chip。
+- **驱动或媒体改动**：读取[接口与生命周期](references/contracts.md)，先核对固定upper/lower调用合同，再定位最小差分及验证边界。
+- **构建/交付审查**：读取[交付检查](references/handoff.md)，使用项目原有构建/布局工具。只有匹配支持的扁平导出格式才调用随附只读检查器。
+- **参考实例**：需要具体问题到代码的映射时读[R1案例](references/r1-example.md)，不把案例结果外推到自己的板。
 
-- 遇到可独立复核的日志归纳、公开代码差异、文档一致性或候选方案时，优先调用
-  已登录的 MiMo 与 Claude CLI 做只读初审；主执行者负责拆分任务、核对原始输入、
-  复现关键结论并作最终决策。
-- 辅助模型不得直接获得仓库写权限，也不得接收或输出密钥。需要现有 CLI 登录环境
-  时，只在进程内从本机配置加载，禁止把凭据打印到命令行输出、文档或日志。
-- 辅助结论必须与本地源码、生成配置、ELF/镜像和 R1 原始日志交叉检查。附件缺少
-  新增日志、来源层级混淆或无法复现的建议一律不采纳。
-- CLI 未登录、无输出或响应过慢时及时停止，不让辅助审查阻塞构建和实机验证。
+## 工作流程
 
-## 不变量
+1. **定位输入**：读实际配置、依赖锁、原理图/器件/引脚资料，区分板型、CPU域和系统实例。
+2. **选择层级**：启动/IRQ/堆、多核/跨核、board注册、子系统驱动、产品服务、构建交付；说明实际受影响层。
+3. **核对合同**：上下文/锁、缓冲域/owner、错误返回、取消/deadline、generation、SDK ABI和板级时序。
+4. **形成最小修改**：延续已有骨架，先修正确性与退出路径，不另造协议栈或用整仓覆盖解决局部问题。
+5. **按风险验证**：先相关语法/配置/运行用例，再成对构建/布局，最后在需要时安排对应硬件行为；已通过项目不无故重跑。
+6. **交付审查**：关联源、dirty差分、依赖、生成配置、ELF、镜像和实际结果，输出清晰的可复核结论。
 
-1. 未核对原理图、BOM、器件 ID 和引脚前，不把 R1 套件等同于公开的 bk7258-devkit。
-2. 未合并 PR 不视为正式发布或本队实机证据；记录仓库、分支和固定提交。
-3. 未保存恢复路径、分区表、校准区与 MAC 数据前，不执行整片擦除。
-4. ARMINO 仅位于厂商边界以下；应用层使用 NuttX/openvela API、文件描述符和 errno 语义。
-5. 驱动架构参考 NuttX 同类实现，寄存器、引脚和时序常量参考目标板权威资料。
-6. 明确区分：规划、接口占位、实现存在、构建验证、R1 实机验证、能力落地。100 帧、10 次冷启动等是本项目自定测试目标，不是大赛统一强制指标；具体阶段可以按依赖并行。
-7. 不编造构建、烧录和运行结果；保存命令、版本、哈希、原始日志及失败样本。
-8. 只纳入固定参考提交中构建闭包必需的 NuttX 覆盖文件，不复制参考队伍的产品
-   应用、UI、模型、凭据和无关平台；所有导入目录都必须在来源清单中说明。
+规划不要求立即修改或连接设备。用户只要求静态检查/材料整理时，停留在授权范围内，不启动云服务或硬件实验。
 
-## 推进顺序
+## 关键约束
 
-1. 盘点工具链、SDK、openvela/NuttX、厂商代码和公开 PR 的固定版本。
-2. 建立恢复与烧录路径，再完成 CPU0 启动和 NSH。
-3. 验证 AP、CPU2 SMP、RPTUN 和 generation/heartbeat，再接板级外设。
-4. 验证 PSRAM、GPIO、定时器，再依次推进显示、Wi-Fi、相机、音频和电源。
-5. 每个驱动同时检查 Kconfig、生成 `.config`、构建接入、板级注册、错误路径、
-   中断/DMA、缓存一致性、重复开关和负向测试。
-6. 应用层一次替换一个 ENOSYS 后端，保持主流程可观测且可回退。
-7. 依次通过该功能所依赖的干净构建、镜像打包、实机证据门禁；例如离线相机
-   验证不要求 Wi-Fi 先完成。失败时记录阻塞，并转向不依赖该条件的本地工作。
+- 物理CPU与逻辑CPU分别描述；不能从CP/AP名称推出任意目标的核数。
+- 不凭defconfig一行判定功能已启用，查生成配置和构建接入。
+- 不凭同名回调复制释放/join，查实际upper-half是否持锁及调用上下文。
+- 私有池、系统堆、DMA缓冲和跨核共享区分别确认，不跨域释放或传裸指针。
+- 内容相同、差分存在和源文件由本仓维护都不等于原创归属；使用实际来源与可追差分。
+- 哈希/构建/模拟通过分别报告，不推定实机、耗流、长稳或像素显示。
+- 不自动烧录、整片擦除、发布、上传日志或启动收费请求；取得对应授权才执行。
 
-## 输出格式
+## 输出合同
 
-每次工作报告：固定基线、修改层级、已通过的最高门禁及证据、阻塞项与下一实验、图形/AI/多媒体是否已落地、建议的中文分步提交。除非当前请求明确授权，不提交、不推送、不烧录、不擦除，也不创建或合并 PR。
+```text
+Target       板型、CPU域、配置、版本、输入缺口
+Scope        修改/审查层级及代码位置
+Contract     owner、上下文、锁、错误、取消和恢复
+Change       基础复用、具体适配与新增行为
+Evidence     命令、源身份、结果及覆盖范围
+Next         仍需的最小动作和回退/停止条件
+```
+
+结论应让另一位开发者能继续本次任务，不需要阅读原开发对话或使用原作者机器目录。

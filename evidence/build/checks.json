@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "record_type": "selected-structured-verification-record",
+  "upstream_record_sha256": "ed3ae41ab6b1908b783e632c84588fd9e046e9716113e03c522b3482136c305a",
+  "scope": "Frozen build and offline-check excerpts",
+  "records": [
+    {
+      "record_id": "record-05",
+      "raw_record_sha256": "67ace9fb6010a35390717d9018d54f5d9b70a605f13a73e46d88dc3a5405aff4",
+      "selected_lines": [
+        {
+          "source_line": 184,
+          "text": "BUILD_EXIT=0"
+        }
+      ]
+    },
+    {
+      "record_id": "record-06",
+      "raw_record_sha256": "e735bac674eaa87a762a05d3e758772c318f32dbf6ddb6f8d5af5a3623e97f41",
+      "selected_lines": [
+        {
+          "source_line": 159,
+          "text": "Ran 168 tests in 27.522s"
+        },
+        {
+          "source_line": 161,
+          "text": "OK"
+        },
+        {
+          "source_line": 170,
+          "text": "CAMERA_LIVE_TIMEOUT_RECOVERY_PASS actual worker close/reopen, retained owner, fresh frames, cancellation and single bounded retry; device mocked"
+        },
+        {
+          "source_line": 494,
+          "text": "R1_OFFLINE_CHECKS_PASS_NO_HARDWARE_OR_CLOUD"
+        },
+        {
+          "source_line": 495,
+          "text": "CHECK_EXIT=0"
+        }
+      ]
+    }
+  ]
+}

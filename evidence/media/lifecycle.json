@@ -1,0 +1,331 @@
+{
+  "schema": 1,
+  "record_type": "selected-structured-verification-record",
+  "upstream_record_sha256": "ed3ae41ab6b1908b783e632c84588fd9e046e9716113e03c522b3482136c305a",
+  "scope": "Local capture, fresh-frame, playback and resource lifecycle excerpts",
+  "records": [
+    {
+      "record_id": "record-01",
+      "raw_record_sha256": "5b756ebb5f66472748110637c251c4c1ba8f41dd74b71b54b7d3f16b61d34b27",
+      "selected_lines": [
+        {
+          "source_line": 4,
+          "text": "AP state=READY(2) error=0 generation=1 heartbeat=10085"
+        },
+        {
+          "source_line": 8,
+          "text": "RPTUN state=CONNECTED(4) error=0 generation=1 flags=00007f3f"
+        },
+        {
+          "source_line": 9,
+          "text": "RPTUN pending cp/ap=00000000/00000000 heartbeat cp/ap=4186/10085 epoch cp/ap=1/1"
+        },
+        {
+          "source_line": 10,
+          "text": "RPTUN rx sequence cp/ap=4280/4282"
+        },
+        {
+          "source_line": 11,
+          "text": "AP supervisor state=HEALTHY(2) reason=NONE(0) generation=1 flags=0000001f"
+        },
+        {
+          "source_line": 12,
+          "text": "Supervisor heartbeat primary/secondary=10084/10086 age=10/10 ms transport seq/age=0/0 ms healthy/sample=1108940/50 ms sample_sequence=4187"
+        },
+        {
+          "source_line": 13,
+          "text": "Supervisor faults/recoveries/consecutive=0/0/0 injection=NONE(0) last_error=0"
+        },
+        {
+          "source_line": 14,
+          "text": "CPU2 state=SCHEDULER_ONLINE(8) error=0 generation=1 heartbeat=10087"
+        },
+        {
+          "source_line": 15,
+          "text": "CPU2 core local=1 physical=2 vector=02130200 VTOR=02130200 MSP(init/run)=28097000/28097000"
+        },
+        {
+          "source_line": 17,
+          "text": "CPU2 bootstrap entry=02130a11 idle=28077e80..28078668 ready=1 online=00000003 calls=14538 boots=1"
+        },
+        {
+          "source_line": 22,
+          "text": "AP SMP state=PASSED(4) error=0 generation=1 online=00000003 boots=1 runs=1 requested/completed=2/2"
+        },
+        {
+          "source_line": 23,
+          "text": "SMP tx/rx cpu0=10104/4434 cpu1=4434/10104 coalesced=0/0 fail=0/0"
+        },
+        {
+          "source_line": 24,
+          "text": "SMP handler call/delivered cpu0=4434/4434 cpu1=10102/10102 callbacks=1/1 lastcpu=0"
+        },
+        {
+          "source_line": 25,
+          "text": "SMP SysTick cpu0/cpu1=110948/0 sleep enter/return=10085/10084"
+        },
+        {
+          "source_line": 40,
+          "text": "[ 1111.871125] [CPU0] [48] [  INFO] [ap] AUDIO stream closed delivered=17648000 elapsed_ms=1103251 ret=-125 cleanup=0"
+        },
+        {
+          "source_line": 51,
+          "text": "vision_badge: wake enabled=1 busy=1 retained=0 error=0 responses=2177 dropped=0 gaps=0 triggers=0 poll_max_ms=11 raw_peak=32767 test=0 backend=lan-asr transport=udp retries=0 wait_ms=0 last=0 (ret=0)"
+        }
+      ]
+    },
+    {
+      "record_id": "record-02",
+      "raw_record_sha256": "61bc74b57e48c2a709293a45772fe0120338c572769437b8a0e3a7d860b22825",
+      "selected_lines": [
+        {
+          "source_line": 48,
+          "text": "HOST_COMMAND vision_badge camera stop"
+        },
+        {
+          "source_line": 55,
+          "text": "vision_badge: camera: enabled=0 active=0 ready=0 sequence=917 age=0 ms error=0 blocked=0 paused=0 reserved=0 (ret=0)"
+        },
+        {
+          "source_line": 62,
+          "text": "HOST_COMMAND vision_badge camera start"
+        },
+        {
+          "source_line": 65,
+          "text": "vision_badge: camera: enabled=1 active=0 ready=0 sequence=917 age=0 ms error=0 blocked=0 paused=0 reserved=0 (ret=0)"
+        },
+        {
+          "source_line": 76,
+          "text": "HOST_COMMAND vision_badge camera status"
+        },
+        {
+          "source_line": 81,
+          "text": "vision_badge: camera: enabled=1 active=1 ready=0 sequence=917 age=0 ms error=0 blocked=0 paused=0 reserved=0 (ret=0)"
+        },
+        {
+          "source_line": 88,
+          "text": "HOST_COMMAND vision_badge camera-test"
+        },
+        {
+          "source_line": 97,
+          "text": "nsh> \u001b[K[ 1257.500907] [CPU0] [31] [  INFO] [ap] vision_badge: camera warm snapshot total=460 ms bytes=17923 ret=0 restarted=0"
+        },
+        {
+          "source_line": 106,
+          "text": "HOST_COMMAND vision_badge audio-tone 8"
+        },
+        {
+          "source_line": 113,
+          "text": "nsh> \u001b[K[ 1259.141094] [CPU0] [31] [  INFO] [ap] AUDIO stream playback samples=16000 nominal_ms=1000 dac_ms=1082 startup_stalls=0 startup_wait_ms=0 running_stalls=0 running_wait_ms=0 wait_max_ms=0 under=0 ret=0 cleanup=0"
+        },
+        {
+          "source_line": 118,
+          "text": "HOST_COMMAND vision_badge camera status"
+        },
+        {
+          "source_line": 121,
+          "text": "vision_badge: camera: enabled=1 active=1 ready=1 sequence=984 age=42 ms error=0 blocked=0 paused=0 reserved=0 (ret=0)"
+        },
+        {
+          "source_line": 128,
+          "text": "HOST_COMMAND vision_badge audio-diag mem"
+        },
+        {
+          "source_line": 131,
+          "text": "vision_badge: audio app_alloc=0 ret=0 sdk_free=131048 sdk_total=655360; SDK free is not app heap free (AP status=0)"
+        },
+        {
+          "source_line": 150,
+          "text": "HOST_COMMAND vision_badge camera stop"
+        },
+        {
+          "source_line": 157,
+          "text": "vision_badge: camera: enabled=0 active=0 ready=0 sequence=1013 age=0 ms error=0 blocked=0 paused=0 reserved=0 (ret=0)"
+        },
+        {
+          "source_line": 164,
+          "text": "HOST_COMMAND vision_badge camera start"
+        },
+        {
+          "source_line": 167,
+          "text": "vision_badge: camera: enabled=1 active=0 ready=0 sequence=1013 age=0 ms error=0 blocked=0 paused=0 reserved=0 (ret=0)"
+        },
+        {
+          "source_line": 180,
+          "text": "HOST_COMMAND vision_badge camera status"
+        },
+        {
+          "source_line": 183,
+          "text": "vision_badge: camera: enabled=1 active=1 ready=0 sequence=1013 age=0 ms error=0 blocked=0 paused=0 reserved=0 (ret=0)"
+        },
+        {
+          "source_line": 190,
+          "text": "HOST_COMMAND vision_badge camera-test"
+        },
+        {
+          "source_line": 197,
+          "text": "nsh> \u001b[K[ 1263.212969] [CPU0] [31] [  INFO] [ap] vision_badge: camera warm snapshot total=422 ms bytes=64387 ret=0 restarted=0"
+        },
+        {
+          "source_line": 204,
+          "text": "HOST_COMMAND vision_badge audio-tone 8"
+        },
+        {
+          "source_line": 211,
+          "text": "nsh> \u001b[K[ 1264.851469] [CPU0] [31] [  INFO] [ap] AUDIO stream playback samples=16000 nominal_ms=1000 dac_ms=1081 startup_stalls=0 startup_wait_ms=0 running_stalls=0 running_wait_ms=0 wait_max_ms=0 under=0 ret=0 cleanup=0"
+        },
+        {
+          "source_line": 216,
+          "text": "HOST_COMMAND vision_badge camera status"
+        },
+        {
+          "source_line": 219,
+          "text": "vision_badge: camera: enabled=1 active=1 ready=1 sequence=1080 age=18 ms error=0 blocked=0 paused=0 reserved=0 (ret=0)"
+        },
+        {
+          "source_line": 226,
+          "text": "HOST_COMMAND vision_badge audio-diag mem"
+        },
+        {
+          "source_line": 229,
+          "text": "vision_badge: audio app_alloc=0 ret=0 sdk_free=131048 sdk_total=655360; SDK free is not app heap free (AP status=0)"
+        },
+        {
+          "source_line": 236,
+          "text": "HOST_COMMAND vision_badge camera stop"
+        },
+        {
+          "source_line": 243,
+          "text": "vision_badge: camera: enabled=0 active=0 ready=0 sequence=1110 age=0 ms error=0 blocked=0 paused=0 reserved=0 (ret=0)"
+        },
+        {
+          "source_line": 250,
+          "text": "HOST_COMMAND vision_badge camera start"
+        },
+        {
+          "source_line": 253,
+          "text": "vision_badge: camera: enabled=1 active=0 ready=0 sequence=1110 age=0 ms error=0 blocked=0 paused=0 reserved=0 (ret=0)"
+        },
+        {
+          "source_line": 266,
+          "text": "HOST_COMMAND vision_badge camera status"
+        },
+        {
+          "source_line": 269,
+          "text": "vision_badge: camera: enabled=1 active=1 ready=0 sequence=1110 age=0 ms error=0 blocked=0 paused=0 reserved=0 (ret=0)"
+        },
+        {
+          "source_line": 276,
+          "text": "HOST_COMMAND vision_badge camera-test"
+        },
+        {
+          "source_line": 283,
+          "text": "nsh> \u001b[K[ 1268.942750] [CPU0] [31] [  INFO] [ap] vision_badge: camera warm snapshot total=422 ms bytes=65131 ret=0 restarted=0"
+        },
+        {
+          "source_line": 290,
+          "text": "HOST_COMMAND vision_badge audio-tone 8"
+        },
+        {
+          "source_line": 297,
+          "text": "nsh> \u001b[K[ 1270.591063] [CPU0] [31] [  INFO] [ap] AUDIO stream playback samples=16000 nominal_ms=1000 dac_ms=1080 startup_stalls=0 startup_wait_ms=0 running_stalls=0 running_wait_ms=0 wait_max_ms=0 under=0 ret=0 cleanup=0"
+        },
+        {
+          "source_line": 302,
+          "text": "HOST_COMMAND vision_badge camera status"
+        },
+        {
+          "source_line": 305,
+          "text": "vision_badge: camera: enabled=1 active=1 ready=1 sequence=1178 age=8 ms error=0 blocked=0 paused=0 reserved=0 (ret=0)"
+        },
+        {
+          "source_line": 312,
+          "text": "HOST_COMMAND vision_badge audio-diag mem"
+        },
+        {
+          "source_line": 315,
+          "text": "vision_badge: audio app_alloc=0 ret=0 sdk_free=131048 sdk_total=655360; SDK free is not app heap free (AP status=0)"
+        },
+        {
+          "source_line": 323,
+          "text": "AP state=READY(2) error=0 generation=1 heartbeat=11562"
+        },
+        {
+          "source_line": 331,
+          "text": "RPTUN state=CONNECTED(4) error=0 generation=1 flags=00007f3f"
+        },
+        {
+          "source_line": 337,
+          "text": "AP supervisor state=HEALTHY(2) reason=NONE(0) generation=1 flags=0000001f"
+        },
+        {
+          "source_line": 359,
+          "text": "AP SMP state=PASSED(4) error=0 generation=1 online=00000003 boots=1 runs=1 requested/completed=2/2"
+        }
+      ]
+    },
+    {
+      "record_id": "record-04",
+      "raw_record_sha256": "79774b05d697fe88ab52e715bef63d4c76ccad745fbf8a2a2b10b062efe9a151",
+      "selected_lines": [
+        {
+          "source_line": 19,
+          "text": "[  227.391813] [CPU0] [59] [  INFO] [ap] AUDIO stream playback samples=29120 nominal_ms=1820 dac_ms=1899 startup_stalls=1 startup_wait_ms=197 running_stalls=0 running_wait_ms=0 wait_max_ms=197 under=0 ret=0 cleanup=0"
+        },
+        {
+          "source_line": 20,
+          "text": "[  227.392157] [CPU0] [59] [  INFO] [ap] agora: playback released; Audio cleanup complete"
+        },
+        {
+          "source_line": 40,
+          "text": "[  236.331313] [CPU0] [59] [  INFO] [ap] AUDIO stream playback samples=81920 nominal_ms=5120 dac_ms=5200 startup_stalls=1 startup_wait_ms=237 running_stalls=0 running_wait_ms=0 wait_max_ms=237 under=0 ret=0 cleanup=0"
+        },
+        {
+          "source_line": 41,
+          "text": "[  236.331688] [CPU0] [59] [  INFO] [ap] agora: playback released; Audio cleanup complete"
+        },
+        {
+          "source_line": 51,
+          "text": "[  244.568719] [CPU0] [58] [  INFO] [ap] vision_badge: camera warm snapshot total=63 ms bytes=57915 ret=0 restarted=0"
+        },
+        {
+          "source_line": 57,
+          "text": "[  247.081219] [CPU0] [59] [  INFO] [ap] AUDIO stream playback samples=38080 nominal_ms=2380 dac_ms=2458 startup_stalls=1 startup_wait_ms=199 running_stalls=0 running_wait_ms=0 wait_max_ms=199 under=0 ret=0 cleanup=0"
+        },
+        {
+          "source_line": 58,
+          "text": "[  247.081563] [CPU0] [59] [  INFO] [ap] agora: playback released; Audio cleanup complete"
+        },
+        {
+          "source_line": 72,
+          "text": "[  260.361875] [CPU0] [59] [  INFO] [ap] AUDIO stream playback samples=176640 nominal_ms=11040 dac_ms=11120 startup_stalls=1 startup_wait_ms=197 running_stalls=0 running_wait_ms=0 wait_max_ms=197 under=0 ret=0 cleanup=0"
+        },
+        {
+          "source_line": 73,
+          "text": "[  260.362219] [CPU0] [59] [  INFO] [ap] agora: playback released; Audio cleanup complete"
+        },
+        {
+          "source_line": 83,
+          "text": "[  268.416782] [CPU0] [58] [  INFO] [ap] vision_badge: camera warm snapshot total=201 ms bytes=56063 ret=0 restarted=0"
+        },
+        {
+          "source_line": 86,
+          "text": "[  271.081125] [CPU0] [59] [  INFO] [ap] AUDIO stream playback samples=37440 nominal_ms=2340 dac_ms=2418 startup_stalls=1 startup_wait_ms=198 running_stalls=0 running_wait_ms=0 wait_max_ms=198 under=0 ret=0 cleanup=0"
+        },
+        {
+          "source_line": 87,
+          "text": "[  271.081469] [CPU0] [59] [  INFO] [ap] agora: playback released; Audio cleanup complete"
+        },
+        {
+          "source_line": 98,
+          "text": "[  277.370594] [17] [  INFO] [cp] VISION BADGE key action=2 transport=0 status=0 Agora stop requested; cleanup=async retained=0"
+        },
+        {
+          "source_line": 100,
+          "text": "[  277.082125] [CPU0] [59] [  INFO] [ap] AUDIO stream playback samples=60480 nominal_ms=3780 dac_ms=3620 startup_stalls=1 startup_wait_ms=219 running_stalls=0 running_wait_ms=0 wait_max_ms=219 under=0 ret=-125 cleanup=0"
+        }
+      ]
+    }
+  ],
+  "timing_semantics": "Individual capture/playback stages; not speech-end to audible-response latency."
+}

@@ -1,0 +1,43 @@
+--- a/Include/arm_nnsupportfunctions.h
++++ b/Include/arm_nnsupportfunctions.h
+@@ -1417,7 +1417,8 @@
+ 
+     const int32_t val_mod_minus_quarter = (val & ((1 << shift) - 1)) - (1 << shift);
+     const int32_t remainder = val_mod_minus_quarter - val;
+-    const int32_t x = (val_mod_minus_quarter << 5) + (1 << 28);
++    // Range [-2^24,-1] makes multiplication by 32 defined in int32_t.
++    const int32_t x = val_mod_minus_quarter * 32 + (1 << 28);
+     const int32_t x2 = MUL_SAT(x, x);
+ 
+     int32_t result = 1895147668 +
+@@ -1445,11 +1446,11 @@
+ 
+ __STATIC_FORCEINLINE int32_t arm_nn_mult_by_power_of_two(const int32_t val, const int32_t exp)
+ {
+-    const int32_t thresh = ((1 << (31 - exp)) - 1);
+-    int32_t result = val << exp;
+-    result = SELECT_USING_MASK(MASK_IF_NON_ZERO(val > thresh), NN_Q31_MAX, result);
+-    result = SELECT_USING_MASK(MASK_IF_NON_ZERO(val < -thresh), NN_Q31_MIN, result);
+-    return result;
++    // For exp in [0,31], clamp before multiplying to avoid signed-shift UB.
++    const int32_t thresh = (int32_t)((UINT32_C(1) << (31 - exp)) - 1u);
++    if (val > thresh) return NN_Q31_MAX;
++    if (val < -thresh) return NN_Q31_MIN;
++    return (int32_t)((int64_t)val * (INT64_C(1) << exp));
+ }
+ 
+ __STATIC_FORCEINLINE int32_t arm_nn_one_over_one_plus_x_for_x_in_0_1(int32_t val)
+--- a/Source/SoftmaxFunctions/arm_nn_softmax_common_s8.c
++++ b/Source/SoftmaxFunctions/arm_nn_softmax_common_s8.c
+@@ -90,7 +90,10 @@
+         }
+ 
+         const int32_t headroom = CLZ(sum);
+-        const int32_t shifted_scale = ONE_OVER1((sum > 0 ? sum << headroom : 0) - (1 << 31));
++        // Normalize in int64_t: positive sums produce [2^31,2^32-1],
++        // so subtracting 2^31 is representable in int32_t without signed shifts.
++        const int64_t normalized_sum = sum > 0 ? (int64_t)sum << headroom : 0;
++        const int32_t shifted_scale = ONE_OVER1((int32_t)(normalized_sum - (INT64_C(1) << 31)));
+         int32_t bits_over_unit;
+ 
+         if (int16_output)

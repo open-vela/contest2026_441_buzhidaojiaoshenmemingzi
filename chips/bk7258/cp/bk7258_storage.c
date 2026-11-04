@@ -70,6 +70,9 @@ static bool bk7258_storage_guard_range(
 
   switch (guard)
     {
+      case BK7258_STORAGE_GUARD_QUIESCE:
+        return false; /* Shutdown barriers never authorize a write range. */
+
       case BK7258_STORAGE_GUARD_DATA:
         data = config->data_storage;
         return data != NULL &&
@@ -372,6 +375,9 @@ static int bk7258_storage_guard_validate(
 
   switch (guard)
     {
+      case BK7258_STORAGE_GUARD_QUIESCE:
+        return 0; /* No optional on-chip data filesystem required. */
+
       case BK7258_STORAGE_GUARD_DATA:
         data = config->data_storage;
         return data != NULL && data->size != 0u &&
@@ -433,6 +439,11 @@ int bk7258_storage_guard_lock(enum bk7258_storage_guard_e guard,
       guard >= BK7258_STORAGE_GUARD_COUNT)
     {
       return -EINVAL;
+    }
+
+  if (guard == BK7258_STORAGE_GUARD_QUIESCE && write_access)
+    {
+      return -EPERM;
     }
 
   ret = bk7258_storage_guard_validate(guard, config);

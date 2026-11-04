@@ -13,9 +13,71 @@ config LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE
 
 if LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE
 
+config CONTEST2026_441_XIAOZHI
+	bool "Xiaozhi fallback conversation (not built with Agora)"
+	default n
+	depends on !CONTEST2026_441_AGORA
+	select LIB_OPUS
+	select OPENSSL_MBEDTLS_WRAPPER
+	select NET_TCPPROTO_OPTIONS
+	select NETUTILS_LIBWEBSOCKETS
+	help
+		Keep the fallback source available without putting two voice stacks
+		in the fixed AP flash partition. Enable only for a Xiaozhi candidate.
+
+config CONTEST2026_441_AGORA
+	bool "Agora RTC on NuttX (pinned BK7258 SDK)"
+	default n
+	depends on BK7258_PSRAM && NET_UDP && !DISABLE_PTHREAD
+	select BK7258_AGORA_RTC
+	help
+		Use the vendor RTC archive and portable AOSL sources with the team's
+		NuttX platform layer. No automatic recording or cloud agent startup.
+		RTC membership and actual voice quality require separate board tests.
+
 config CONTEST2026_441_VISION_BADGE_STACKSIZE
 	int "Vision badge main task stack size"
 	default 8192
+
+config CONTEST2026_441_WAKE_ASR
+	bool "Computer-assisted local streaming ASR wake backend (candidate)"
+	default n
+	depends on CONTEST2026_441_AGORA && CONTEST2026_441_POWER && BK7258_AUD
+	help
+		Requires an explicitly started sherpa-onnx LAN host and its device key.
+		500ms PCM chunks stay in RAM. Host text matching is not standalone
+		on-board KWS. Enable CONTEST2026_441_WAKE to expose the wake commands.
+
+config CONTEST2026_441_WAKE_STREAM
+	bool "Persistent NuttX CONNECT PCM stream for LAN ASR (candidate)"
+	default n
+	depends on CONTEST2026_441_WAKE_ASR && !CONTEST2026_441_WAKE_UDP
+	select NET_TCPPROTO_OPTIONS
+	help
+		Reuse the existing webclient tunnel and one authenticated TCP socket.
+		Send ordered 20ms PCM frames, retaining bounded queues and result age.
+		The companion host is an audio endpoint, not a forwarding proxy.
+
+config CONTEST2026_441_WAKE_UDP
+	bool "Bounded redundant UDP PCM for LAN ASR (candidate)"
+	default n
+	depends on CONTEST2026_441_WAKE_ASR && NET_UDP
+	help
+		Reuse NuttX datagram sockets and mbedTLS HMAC-SHA256. One current
+		and one previous 20ms frame per packet avoid TCP head-of-line stalls.
+		Authenticated HTTP creates a fresh stream; larger gaps reset ASR.
+
+config CONTEST2026_441_WAKE
+	bool "R1 local wake word to the existing Agora session (candidate)"
+	default n
+	depends on CONTEST2026_441_AGORA && CONTEST2026_441_POWER && BK7258_AUD
+	depends on CONTEST2026_441_WAKE_ASR || (HAVE_CXX && !LIBCXXNONE)
+	help
+		Explicit agora wake-start/wake-stop/wake-status commands. Uses locked
+		OpenVela microfrontend/TFLM inputs and a separately pinned candidate
+		model. No automatic listening on boot. Stop microphone and release
+		camera ownership before starting the existing voice conversation.
+		Requires real human speech, latency, memory and false-wake validation.
 
 config CONTEST2026_441_VISION_BADGE_CAMERA_DEVPATH
 	string "V4L2 camera device path"
@@ -61,6 +123,32 @@ config LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE_CLIENT
 	help
 		Expose the vision_badge command on the CPU0 NSH. Requests are sent to
 		the AP camera and MiMo service over a bounded RPMsg endpoint.
+
+config CONTEST2026_441_POWER
+	bool "R1 product power coordination (candidate)"
+	default n
+	depends on BK7258_PM_SOFT_OFF
+	depends on !BK7258_AP_CORE || BK7258_AIDK_DUAL_LCD
+	depends on LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE || LVX_USE_DEMO_CONTEST2026_441_VISION_BADGE_CLIENT
+	depends on !BK7258_AP_CORE || CONTEST2026_441_AGORA
+	help
+		Explicit quiet/resume/prepare/off commands. Stop new work, drain Agora,
+		pause camera, blank panels through their owner, sync, then request CP
+		reboot-to-sleep. No automatic battery cutoff or inactivity shutdown.
+		CP KEY2 held for 3 seconds requests a power toggle; side keys adjust
+		ten output levels. Board validation is
+		required; acceptance is not proof of sleep, power removal or wake.
+
+config CONTEST2026_441_PRODUCT_STARTUP
+	bool "Opt-in R1 product startup after network readiness"
+	default n
+	depends on CONTEST2026_441_AGORA && CONTEST2026_441_POWER && CONTEST2026_441_WAKE_ASR
+	---help---
+		After the existing network warmup succeeds, select the warm-camera
+		voice path and arm the configured LAN-assisted wake service. Does not
+		start an RTC conversation on boot; detection or the middle key still
+		starts it. A separately running LAN ASR/voice host is required. Failure
+		is reported without retrying cloud starts or replacing the provider.
 
 config LVX_USE_DEMO_CONTEST2026_441_R1_KEYLED
 	bool "Contest 2026 team 441 R1 key/LED test"

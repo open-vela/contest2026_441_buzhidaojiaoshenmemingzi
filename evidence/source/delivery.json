@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "scope": "content-addressed-delivery-inputs",
+  "firmware_input_count": 486,
+  "firmware_input_tree_sha256": "4431bd71a0b80edac8f98e9b2ba2c4d20763df0c0b0138e6d23c60c34bb72e30",
+  "matches_verified_firmware_source_inputs": true,
+  "index_semantics": "Git-stored source/config bytes; exact fixtures retain original bytes.",
+  "dependency_patch_sha256": "36d9548f475d06b771c18a3ee0416e74bb51931f502ec643ea56ac3a75bdfd33"
+}

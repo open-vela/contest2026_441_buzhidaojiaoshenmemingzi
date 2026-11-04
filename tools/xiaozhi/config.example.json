@@ -1,0 +1,7 @@
+{
+  "url": "ws://192.168.10.150:8000/xiaozhi/v1/",
+  "device_id": "02:00:00:00:04:41",
+  "client_id": "r1-host-probe",
+  "token": "",
+  "timeout_seconds": 10
+}

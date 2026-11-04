@@ -17,12 +17,15 @@
 #include <nuttx/arch.h>
 #include <nuttx/clock.h>
 #include <nuttx/irq.h>
+#include <nuttx/signal.h>
 #include <nuttx/wqueue.h>
 
 #include <arch/chip/bk7258_gpio.h>
 #include <arch/chip/bk7258_pinmux.h>
 #include <arch/chip/bk7258_pm.h>
-#include <arch/chip/bk7258_ota.h>
+#ifdef CONFIG_BK7258_MCUBOOT_IMAGE
+#  include <arch/chip/bk7258_ota.h>
+#endif
 #include <arch/chip/bk7258_reset_cause.h>
 #include <arch/chip/bk7258_storage_guard.h>
 #include <arch/chip/bk7258_system_reset.h>
@@ -57,10 +60,10 @@ static void bk7258_pm_soft_off_worker(void *arg)
    * Hold this read-only guard until reset, so no new Flash mutation can race.
    */
 
-  ret = bk7258_storage_guard_lock(BK7258_STORAGE_GUARD_DATA, false, 1000);
+  ret = bk7258_storage_guard_lock(BK7258_STORAGE_GUARD_QUIESCE, false, 1000);
   if (ret < 0)
     {
-      syslog(LOG_ERR, "soft-off: storage busy %d; reset canceled\n", ret);
+      syslog(LOG_ERR, "soft-off: storage barrier rejected ret=%d; reset canceled\n", ret);
       __atomic_store_n(&g_soft_off_pending, false, __ATOMIC_RELEASE);
       return;
     }
@@ -75,7 +78,9 @@ int bk7258_pm_soft_off_status(void)
 
 int bk7258_pm_soft_off_request(void)
 {
+#ifdef CONFIG_BK7258_MCUBOOT_IMAGE
   struct bk7258_ota_pair_snapshot_s pair;
+#endif
   bool expected = false;
   int ret;
 
@@ -86,11 +91,13 @@ int bk7258_pm_soft_off_request(void)
 
   /* Do not turn a trial-image power request into an unintended rollback. */
 
+#ifdef CONFIG_BK7258_MCUBOOT_IMAGE
   ret = bk7258_ota_get_active_pair(&pair);
   if (ret < 0 || pair.state != BK7258_OTA_PAIR_CONFIRMED)
     {
       return -EBUSY;
     }
+#endif
 
   if (!__atomic_compare_exchange_n(&g_soft_off_pending, &expected, true,
                                    false, __ATOMIC_ACQ_REL,
@@ -117,15 +124,18 @@ void bk7258_pm_soft_off_boot(const struct bk7258_gpio_config_s *config)
 {
   struct bk7258_reset_cause_raw_s reason;
   bool high;
+  bool wake;
   int ret;
 
   g_soft_off_ready = config != NULL && config->power_button_enabled &&
                      config->power_button_gpio <= 15;
-  if (bk7258_reset_cause_read(&reason) < 0 ||
-      reason.source != BK7258_RESET_SOURCE_FORCE_DEEPSLEEP)
+  if (bk7258_reset_cause_read(&reason) < 0)
     {
       return;
     }
+  wake = reason.source == BK7258_RESET_SOURCE_DEEPPS_GPIO ||
+         reason.source == BK7258_RESET_SOURCE_SUPER_DEEP;
+  if (reason.source != BK7258_RESET_SOURCE_FORCE_DEEPSLEEP && !wake) return;
 
   /* Consume the intent before any fallible setup. A failed entry must boot
    * normally, and a later analog-key wake must not repeat the off request.
@@ -137,14 +147,82 @@ void bk7258_pm_soft_off_boot(const struct bk7258_gpio_config_s *config)
       return;
     }
 
+  /* Match the SDK's shutdown-wake ordering: low-power hardware recovery
+   * (including AON GPIO state unlock) precedes reading the power key. The
+   * coordinated-standby early hook invokes only the hardware leaf; complete
+   * the SDK PM setup here, once, before GPIO setup and either key wait.
+   * This special boot still has no radio/AP/SD owners.
+   */
+
+  pm_hardware_init();
+
   ret = bk7258_gpio_configure_input(config->power_button_gpio,
     config->power_button_active_low ? BK7258_GPIO_PULL_UP :
                                       BK7258_GPIO_PULL_DOWN);
-  if (ret < 0 ||
-      bk7258_gpio_read_input(config->power_button_gpio, &high) < 0 ||
-      high != config->power_button_active_low)
+  if (ret < 0)
     {
-      syslog(LOG_WARNING, "soft-off: wake key active/setup failed; booting\n");
+      syslog(LOG_WARNING, "soft-off: wake key setup failed; booting\n");
+      return;
+    }
+
+  if (wake)
+    {
+      /* Analog GPIO wakes the SoC on the first edge. Require the remaining
+       * physical hold here, before starting radio/AP/SD/product workers. A
+       * short tap returns to the same SDK sleep path, without a full boot. */
+      clock_t started = clock_systime_ticks();
+      clock_t held = 0;
+      syslog(LOG_INFO, "soft-off: checking physical power key after PM recovery\n");
+      for (;;)
+        {
+          ret = bk7258_gpio_read_input(config->power_button_gpio, &high);
+          if (ret < 0 || high == config->power_button_active_low) break;
+          held = clock_systime_ticks() - started;
+          if (held >= MSEC2TICK(3000))
+            {
+              syslog(LOG_INFO, "soft-off: power key held 3000 ms; boot accepted\n");
+              return;
+            }
+          /* CPU-loop calibration changes with DVFS. Measure elapsed NuttX
+           * time; a short/interrupted wait must never count as a full poll.
+           */
+
+          (void)nxsig_usleep(20000);
+        }
+      syslog(LOG_INFO, "soft-off: short wake rejected after %lu ms read=%d\n",
+             (unsigned long)TICK2MSEC(clock_systime_ticks() - started), ret);
+    }
+
+  /* Long-off is dispatched while the key is still down. Wait for release
+   * before arming level-sensitive wake, so this same hold cannot boot again.
+   * Bound a stuck input; never claim sleep if the key cannot be released. */
+  clock_t started = clock_systime_ticks();
+  clock_t released_at = started;
+  bool released = false;
+  while (clock_systime_ticks() - started < MSEC2TICK(10000))
+    {
+      ret = bk7258_gpio_read_input(config->power_button_gpio, &high);
+      if (ret < 0) break;
+      if (high != config->power_button_active_low)
+        {
+          released = false;
+        }
+      else if (!released)
+        {
+          released = true;
+          released_at = clock_systime_ticks();
+        }
+      else if (clock_systime_ticks() - released_at >= MSEC2TICK(100))
+        {
+          break;
+        }
+
+      (void)nxsig_usleep(20000);
+    }
+  if (ret < 0 || !released ||
+      clock_systime_ticks() - released_at < MSEC2TICK(100))
+    {
+      syslog(LOG_ERR, "soft-off: key stuck/read failed; sleep canceled\n");
       return;
     }
 
@@ -154,7 +232,6 @@ void bk7258_pm_soft_off_boot(const struct bk7258_gpio_config_s *config)
    * so this must never be called from a running product-key callback.
    */
 
-  pm_hardware_init();
   ret = bk_gpio_ana_register_wakeup_source(config->power_button_gpio,
     config->power_button_active_low ? GPIO_INT_TYPE_LOW_LEVEL :
                                       GPIO_INT_TYPE_HIGH_LEVEL);

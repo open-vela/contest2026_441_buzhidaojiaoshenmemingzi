@@ -163,6 +163,16 @@ config BK7258_AIDK_CAMERA
 		NuttX V4L2 capture upper half.  The initial production profile exposes
 		640x480, 30 fps MJPEG through /dev/video0.
 
+config BK7258_AIDK_EYE_LVGL_STATUS
+	bool "LVGL eye activity status overlay (candidate)"
+	default n
+	depends on BK7258_AIDK_DUAL_LCD && GRAPHICS_LVGL
+	select LV_USE_LABEL
+	help
+		Render activity text using the locked OpenVela LVGL component on the
+		existing eye worker. No additional panel or audio owner is created.
+		Leave disabled for the previously verified product baseline.
+
 config BK7258_AIDK_BSP_SELFTEST
 	bool "AIDK AP BSP data-path selftest"
 	default n

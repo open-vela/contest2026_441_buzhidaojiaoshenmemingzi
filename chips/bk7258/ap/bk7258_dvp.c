@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/time.h>
+#include <syslog.h>
 
 #include <nuttx/arch.h>
 #include <nuttx/clock.h>
@@ -73,6 +74,12 @@ struct bk7258_dvp_event_s
   uint8_t result;
 };
 
+struct bk7258_dvp_delivery_s
+{
+  uint32_t incoming, queued, delivered, inactive, queue_full;
+  uint32_t pool_miss, no_target, schedule_failed, set_busy, start_no_buffer;
+};
+
 struct bk7258_dvp_s
 {
   struct imgdata_s data;
@@ -106,6 +113,7 @@ struct bk7258_dvp_s
   uint32_t next_size;
   imgdata_capture_t capture_cb;
   FAR void *capture_arg;
+  struct bk7258_dvp_delivery_s delivery;
 };
 
 static struct bk7258_dvp_s g_bk7258_dvp =
@@ -825,6 +833,7 @@ static void bk7258_dvp_drop_events_locked(FAR struct bk7258_dvp_s *priv)
 static void bk7258_dvp_schedule_failed(FAR struct bk7258_dvp_s *priv)
 {
   irqstate_t flags = spin_lock_irqsave(&priv->lock);
+  priv->delivery.schedule_failed++;
 
   priv->work_queued = false;
   priv->worker_running = false;
@@ -900,6 +909,8 @@ static void bk7258_dvp_complete_worker(FAR void *arg)
       priv->next_size = 0;
       capture_cb = priv->capture_active ? priv->capture_cb : NULL;
       capture_arg = priv->capture_arg;
+      if (capture_cb != NULL && target == NULL) priv->delivery.no_target++;
+      if (capture_cb != NULL && target != NULL && event.result == 0) priv->delivery.delivered++;
       spin_unlock_irqrestore(&priv->lock, flags);
 
       result = event.result;
@@ -936,6 +947,7 @@ static void bk7258_dvp_complete_worker(FAR void *arg)
 static int bk7258_dvp_stop_stream(FAR struct bk7258_dvp_s *priv)
 {
   irqstate_t flags;
+  struct bk7258_dvp_delivery_s delivery;
   bool need_suspend;
   bool current_worker;
   int ret;
@@ -1044,8 +1056,18 @@ static int bk7258_dvp_stop_stream(FAR struct bk7258_dvp_s *priv)
       priv->worker_tid = (pid_t)-1;
     }
   priv->stopping = false;
+  delivery = priv->delivery;
   spin_unlock_irqrestore(&priv->lock, flags);
   nxmutex_unlock(&priv->api_lock);
+  /* Thread-context snapshot only: never log from SDK/ISR frame callbacks.
+   * Counts distinguish absent SDK events from upper-half delivery stalls;
+   * they are not a sensor/DMA health verdict. */
+  syslog(LOG_INFO, "DVP delivery in/queued/out=%lu/%lu/%lu inactive=%lu full=%lu pool_miss=%lu no_target=%lu schedule_fail=%lu set_busy=%lu start_no_buffer=%lu stop=%d\n",
+         (unsigned long)delivery.incoming, (unsigned long)delivery.queued,
+         (unsigned long)delivery.delivered, (unsigned long)delivery.inactive,
+         (unsigned long)delivery.queue_full, (unsigned long)delivery.pool_miss,
+         (unsigned long)delivery.no_target, (unsigned long)delivery.schedule_failed,
+         (unsigned long)delivery.set_busy, (unsigned long)delivery.start_no_buffer, ret);
   return ret;
 }
 
@@ -1082,6 +1104,7 @@ static FAR struct frame_buffer_t *bk7258_dvp_frame_malloc(
         }
     }
 
+  priv->delivery.pool_miss++;
   spin_unlock_irqrestore(&priv->lock, flags);
   return NULL;
 }
@@ -1098,10 +1121,12 @@ static void bk7258_dvp_frame_complete(image_format_t format,
   (void)format;
 
   flags = spin_lock_irqsave(&priv->lock);
+  priv->delivery.incoming++;
   index = bk7258_dvp_frame_index(priv, frame);
   if (index < 0 || !priv->frame_busy[index] || !priv->capture_active ||
       priv->stopping)
     {
+      priv->delivery.inactive++;
       if (index >= 0)
         {
           priv->frame_busy[index] = false;
@@ -1112,6 +1137,7 @@ static void bk7258_dvp_frame_complete(image_format_t format,
 
   if (priv->event_count >= BK7258_DVP_EVENT_DEPTH)
     {
+      priv->delivery.queue_full++;
       /* An ISR cannot wait for NuttX video consumption.  Drop this completed
        * frame and return its descriptor to the bounded pool. */
       priv->frame_busy[index] = false;
@@ -1124,6 +1150,7 @@ static void bk7258_dvp_frame_complete(image_format_t format,
   priv->events[(priv->event_head + priv->event_count) %
                BK7258_DVP_EVENT_DEPTH].result = (uint8_t)result;
   priv->event_count++;
+  priv->delivery.queued++;
   if (!priv->work_queued)
     {
       priv->work_queued = true;
@@ -1746,6 +1773,7 @@ static int bk7258_dvp_data_set_buf(FAR struct imgdata_s *data,
     }
   if (priv->next_buffer != NULL)
     {
+      priv->delivery.set_busy++;
       spin_unlock_irqrestore(&priv->lock, flags);
       return -EBUSY;
     }
@@ -1809,6 +1837,7 @@ static int bk7258_dvp_data_start_capture(
     }
   if (priv->next_buffer == NULL)
     {
+      priv->delivery.start_no_buffer++;
       spin_unlock_irqrestore(&priv->lock, flags);
       nxmutex_unlock(&priv->api_lock);
       return -EINVAL;
@@ -2069,6 +2098,7 @@ int bk7258_dvp_initialize(FAR const struct bk7258_dvp_config_s *config,
   g_bk7258_dvp.suspended = false;
   flags = spin_lock_irqsave(&g_bk7258_dvp.lock);
   memset(g_bk7258_dvp.frame_busy, 0, sizeof(g_bk7258_dvp.frame_busy));
+  memset(&g_bk7258_dvp.delivery, 0, sizeof(g_bk7258_dvp.delivery));
   g_bk7258_dvp.event_head = 0;
   g_bk7258_dvp.event_count = 0;
   g_bk7258_dvp.work_queued = false;

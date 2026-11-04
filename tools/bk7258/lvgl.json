@@ -1,0 +1,8 @@
+{
+  "path": "apps/graphics/lvgl/lvgl",
+  "url": "https://github.com/open-vela/apps_graphics_lvgl.git",
+  "commit": "0f2a49f588505a00e8b46e25a34581c87291a62a",
+  "tree": "264512c006668a4aad179e7053a5ddc32e0b33eb",
+  "license": "MIT",
+  "license_file": "LICENCE.txt"
+}

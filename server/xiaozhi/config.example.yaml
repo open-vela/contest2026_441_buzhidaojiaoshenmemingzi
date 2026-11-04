@@ -1,0 +1,50 @@
+# Copy to xiaozhi-server/data/.config.yaml; do not overwrite config.yaml.
+# Placeholder only: fill an application API key locally before starting.
+# Active temporary backend: Zhipu. Switch selected_module.LLM to R1MiMoLLM
+# when a working MiMo application key is available again.
+selected_module:
+  VAD: SileroVAD
+  ASR: FunASR
+  LLM: R1ZhipuLLM
+  TTS: EdgeTTS
+  Memory: nomem
+  Intent: nointent
+
+LLM:
+  R1ZhipuLLM:
+    type: openai
+    base_url: https://open.bigmodel.cn/api/paas/v4
+    model_name: glm-4-flash-250414
+    api_key: ""
+    max_tokens: 128
+    temperature: 0.5
+    timeout:
+      connect: 5
+      write: 10
+      read: 30
+      pool: 2
+  R1MiMoLLM:
+    type: openai
+    base_url: https://api.xiaomimimo.com/v1
+    model_name: mimo-v2.5
+    api_key: ""
+    max_tokens: 128
+    temperature: 0.5
+    timeout:
+      connect: 5
+      write: 10
+      read: 30
+      pool: 2
+
+# This initial profile keeps the upstream ASR/TTS implementations. Local ASR
+# weights and runtime must be installed separately; don't claim streaming ASR
+# or a measured latency from configuration alone. Intent routing and long-term
+# memory are off to avoid adding extra model calls to the critical path.
+prompt: "你是自然、友善的中文语音助手。回复适合直接说出来，默认一到两句，不用列表。保留当前会话上下文。不知道实时信息时不要编造。"
+
+server:
+  ip: 0.0.0.0
+  port: 8000
+  http_port: 8003
+
+tts_audio_send_delay: 0

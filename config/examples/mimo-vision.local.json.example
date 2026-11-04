@@ -1,0 +1,4 @@
+{
+  "url": "https://api.xiaomimimo.com/v1/chat/completions",
+  "api_key": "REPLACE_WITH_ORDINARY_MIMO_API_KEY"
+}

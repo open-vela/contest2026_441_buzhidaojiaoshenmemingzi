@@ -1,0 +1,77 @@
+{
+  "nuttx": {
+    "url": "https://github.com/open-vela/nuttx.git",
+    "commit": "76354c637858ecb0aa4601629327acb6f44a26bb",
+    "tree": "a5805b585d5c64b2377d78a915485da1790212b2"
+  },
+  "apps": {
+    "url": "https://github.com/open-vela/nuttx-apps.git",
+    "commit": "dcc6a95c3b323e533c98fde8fb209f99e24f0fdd",
+    "tree": "9f2117b85ab6892d8131b5f514a1c53566a73082"
+  },
+  "build": {
+    "url": "https://github.com/open-vela/build.git",
+    "commit": "305cea66a8efc749a958d8410f736e640c49496b",
+    "tree": "bba25de5b3ebd8d236ddb0e30b9d023b29cad2bf"
+  },
+  "external": {
+    "url": "https://github.com/open-vela/external.git",
+    "commit": "9ae61d24354f0da52245f3103aa52bffaaeb21a3",
+    "tree": "f5ede312fbbee3400f31c3b5dc00648a1ee8819e"
+  },
+  "frameworks": {
+    "url": "https://github.com/open-vela/frameworks.git",
+    "commit": "9118a9e05fb9d2b8523564fd30531fa44c627201",
+    "tree": "b5e5658fe633b40509b9dbb3f246416faaba9231"
+  },
+  "packages": {
+    "url": "https://github.com/open-vela/packages.git",
+    "commit": "927618869eee9129c3670cd54397ede523c57d64",
+    "tree": "5166eaa54babd3b7cb9a04fdf44a256db3dc095e"
+  },
+  "packages/demos": {
+    "url": "https://github.com/open-vela/packages_demos.git",
+    "commit": "08b94dd9cdf6e5bf7aad855c6ba43afd75bc5d2d",
+    "tree": "975f658f379c4301ed62de8b2d9952dab89ab5a2"
+  },
+  "vendor/openvela": {
+    "url": "https://github.com/open-vela/vendor_openvela.git",
+    "commit": "f3526176a855b53c081673d5247be418a3624326",
+    "tree": "2d41724e623a463939fe301bcb4b373e69911768"
+  },
+  "apps/crypto/mbedtls/mbedtls": {
+    "url": "https://github.com/open-vela/apps_crypto_mbedtls.git",
+    "commit": "8dc7407815e718db0a96ac53793c9438894c33aa",
+    "tree": "4521e56a23fb4dcc99b67f434834df03a21a2e56"
+  },
+  "apps/netutils/cjson/cJSON": {
+    "url": "https://github.com/open-vela/apps_netutils_cjson_cJSON.git",
+    "commit": "48ab0a605ddab58ae91c8bc4a6c47191502a2971",
+    "tree": "7f133f986ba85608205886e64aa5435d08339d3d"
+  },
+  "external/opus/opus": {
+    "url": "https://github.com/open-vela/external_opus.git",
+    "commit": "527d25d8c3442a4f1b259b77717eca09e6c9ab63",
+    "tree": "71be9440ce078283105a51bb1688b6dc66568dc5"
+  },
+  "nuttx/openamp/libmetal": {
+    "url": "https://github.com/open-vela/nuttx_openamp_libmetal.git",
+    "commit": "82a914c1b474555172c2d63ab8458928accaf512",
+    "tree": "e48eb7320f8bdeb9bd0a288e9de9cfd52d9e6a1d"
+  },
+  "nuttx/openamp/open-amp": {
+    "url": "https://github.com/open-vela/nuttx_openamp_open-amp.git",
+    "commit": "d6a4031adf64b10e192602f834d311f90a88a4d9",
+    "tree": "5e4834b62da8bb69ed91c550fe893ea5c7105a96"
+  },
+  "nuttx/fs/littlefs/littlefs": {
+    "url": "https://github.com/open-vela/nuttx_fs_littlefs_littlefs.git",
+    "commit": "70ab38f68bd97304647d938ffd5be904a22b9fab",
+    "tree": "d36b0ea8c981314a57f14d032ec37a272cbc0ee7"
+  },
+  "vendor/beken/bk_avdk_smp": {
+    "url": "https://github.com/Embracecactus/bk_avdk_smp.git",
+    "commit": "cb080de1655d579c7593ecf504c440997c4c137b",
+    "tree": "cd5a35d8d59629d6a48a0b9122fabbf94e45cc60"
+  }
+}

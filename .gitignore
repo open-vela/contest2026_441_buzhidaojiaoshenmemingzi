@@ -2,6 +2,8 @@
 build/
 out/
 cmake_out/
+prebuilt/
+chips/bk7258/bk_idk/armino_as_lib/
 tmp/
 *.o
 *.a
@@ -18,6 +20,7 @@ __pycache__/
 .env.*
 !.env.example
 secrets/
+server/xiaozhi/.config.yaml
 *.pem
 *.key
 
@@ -27,4 +30,22 @@ secrets/
 .DS_Store
 Thumbs.db
 
-# Do not ignore logs/: exported AI Coding logs are contest deliverables.
+# Private work is never part of this public review tree.
+AGENTS.md
+SOURCE_PROVENANCE.md
+docs/progress/
+docs/development/
+submission/
+.local/
+research/
+migration-evidence/
+
+# AI development content is selected only after explicit human review.
+logs/
+.agents/
+.claude/
+
+
+# Structured verification records, not build output directories.
+!evidence/build/
+!evidence/build/**

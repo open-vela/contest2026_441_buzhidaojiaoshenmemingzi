@@ -44,6 +44,9 @@ _Static_assert((int)BK7258_RESET_SOURCE_HARD_FAULT ==
 _Static_assert((int)BK7258_RESET_SOURCE_FORCE_DEEPSLEEP ==
                (int)RESET_SOURCE_FORCE_DEEPSLEEP,
                "SDK force-deep-sleep reset ABI changed");
+_Static_assert((int)BK7258_RESET_SOURCE_DEEPPS_GPIO == (int)RESET_SOURCE_DEEPPS_GPIO &&
+               (int)BK7258_RESET_SOURCE_SUPER_DEEP == (int)RESET_SOURCE_SUPER_DEEP,
+               "SDK deep-sleep wake reset ABI changed");
 
 int bk7258_reset_cause_read(FAR struct bk7258_reset_cause_raw_s *raw)
 {

@@ -1,0 +1,7 @@
+{
+  "app_id": "REPLACE_WITH_32_HEX_APP_ID",
+  "server_host": "REPLACE_WITH_SERVICE_LAN_IPV4",
+  "server_port": 8766,
+  "device_key": "REPLACE_WITH_64_HEX_DEVICE_KEY",
+  "volume": 8
+}

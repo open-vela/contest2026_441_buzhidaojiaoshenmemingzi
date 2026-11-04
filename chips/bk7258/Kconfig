@@ -57,6 +57,17 @@ config BK7258_AP_CORE
 		BK7258_AP_SMP_BOOTSTRAP; see boards/bk7258/CONFIGS.md for the
 		canonical physical-board/profile catalog.
 
+config BK7258_AGORA_RTC
+	bool "Agora RTC NuttX platform support"
+	default n
+	depends on BK7258_AP_CORE && BK7258_PSRAM && NET_UDP && !DISABLE_PTHREAD
+	depends on BK7258_PSRAM_SYSTEM_HEAP && BK7258_PSRAM_EXT_SYSTEM_HEAP
+	select BK7258_TRNG
+	help
+		Link the fixed RTC archive and portable AOSL sources using NuttX
+		thread, socket, time and PSRAM adapters. No Armino scheduler is used.
+		The official CMake build is the currently supported integration.
+
 config BK7258_AP_APPLICATION_LIFECYCLE
 	bool
 	default n
@@ -501,7 +512,8 @@ config BK7258_PM_SOFT_OFF
 	bool "Board-key wakeable low-power soft off"
 	default n
 	depends on BK7258_PM_CLOCK
-	depends on BK7258_AP_CORE || (BK7258_SDK_IPC_RUNTIME && BK7258_OTA)
+	depends on BK7258_AP_CORE || BK7258_SDK_IPC_RUNTIME
+	depends on BK7258_AP_CORE || !BK7258_MCUBOOT_IMAGE || BK7258_OTA
 	select SCHED_LPWORK if !BK7258_AP_CORE
 	select BK7258_CP_GPIO_INPUT if !BK7258_AP_CORE
 	select BOARDCTL_RESET_CAUSE if !BK7258_AP_CORE
@@ -510,6 +522,8 @@ config BK7258_PM_SOFT_OFF
 		sleep intent. Early boot enters super deep sleep before AP/radio
 		startup. The board supplies an analog wake GPIO. This does not
 		physically disconnect VBAT; wake and current require board testing.
+		Signed MCUboot images additionally require a confirmed OTA pair.
+		Direct diagnostic images have no trial/rollback state to confirm.
 
 config BK7258_TEMPERATURE
 	bool "CP-owned on-die temperature sensor"

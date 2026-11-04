@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <nuttx/clock.h>
@@ -19,6 +20,11 @@
 #include <vision_badge/rpc.h>
 
 #ifdef CONFIG_BK7258_AP_CORE
+#  ifdef CONFIG_BK7258_AIDK_BATTERY
+#    include <fcntl.h>
+#    include <nuttx/fs/fs.h>
+#    include <nuttx/power/battery_ioctl.h>
+#  endif
 #  include <sched.h>
 #  include <stdlib.h>
 #  include <syslog.h>
@@ -27,6 +33,20 @@
 #  include <vision_badge/mimo_http.h>
 #  include <vision_badge/services.h>
 #  include <vision_badge/workflow.h>
+#  ifdef CONFIG_CONTEST2026_441_POWER
+#    include <vision_badge/power_service.h>
+#  endif
+#  ifdef CONFIG_CONTEST2026_441_WAKE
+#    include <vision_badge/wake_service.h>
+#  endif
+#  ifdef CONFIG_CONTEST2026_441_XIAOZHI
+#    include <vision_badge/xiaozhi_audio.h>
+#    include <vision_badge/xiaozhi_conversation.h>
+#  endif
+#  ifdef CONFIG_CONTEST2026_441_AGORA
+#    include <vision_badge/agora_service.h>
+#    include <vision_badge/agora_control.h>
+#  endif
 #else
 #  include <syslog.h>
 #  include <nuttx/kthread.h>
@@ -45,7 +65,16 @@ extern uint32_t board_buttons(void);
 
 #ifdef CONFIG_BK7258_AP_CORE
 #  define VISION_BADGE_RPC_REMOTE_NAME  "cp"
-#  define VISION_BADGE_RPC_STACKSIZE    16384
+/* Fixed-point Opus uses variable-length stack scratch. Keep the workspace's
+ * LIB_OPUS_STACKSIZE default budget for the diagnostic worker until measured
+ * on R1; do not run it on the old 16 KiB camera-only stack.
+ */
+#  ifdef CONFIG_CONTEST2026_441_XIAOZHI
+#    define VISION_BADGE_RPC_STACKSIZE  102400
+#  else
+/* Agora owns separate workers; this RPC task no longer runs Opus scratch. */
+#    define VISION_BADGE_RPC_STACKSIZE  32768
+#  endif
 #  define VISION_BADGE_RPC_PRIORITY     99
 #  define VISION_BADGE_NET_STACKSIZE    8192
 #  define VISION_BADGE_NET_PRIORITY     110
@@ -57,7 +86,17 @@ enum vision_badge_rpc_command_e
 {
   VISION_BADGE_RPC_QUERY = 1,
   VISION_BADGE_RPC_RESULT,
-  VISION_BADGE_RPC_PROVISION
+  VISION_BADGE_RPC_PROVISION,
+  VISION_BADGE_RPC_AUDIO_LOOPBACK,
+  VISION_BADGE_RPC_CODEC_SELFTEST,
+  VISION_BADGE_RPC_CONVERSATION,
+  VISION_BADGE_RPC_AGORA,
+  VISION_BADGE_RPC_BATTERY,
+  VISION_BADGE_RPC_AUDIO_DIAGNOSTIC,
+  VISION_BADGE_RPC_CAMERA
+#ifdef CONFIG_CONTEST2026_441_POWER
+  , VISION_BADGE_RPC_POWER
+#endif
 };
 
 struct vision_badge_rpc_wire_s
@@ -156,10 +195,28 @@ static bool vision_badge_rpc_wire_valid(
          msg->version == VISION_BADGE_RPC_VERSION &&
          (msg->command == VISION_BADGE_RPC_QUERY ||
           msg->command == VISION_BADGE_RPC_RESULT ||
-          msg->command == VISION_BADGE_RPC_PROVISION);
+          msg->command == VISION_BADGE_RPC_PROVISION ||
+          msg->command == VISION_BADGE_RPC_AUDIO_LOOPBACK ||
+          msg->command == VISION_BADGE_RPC_CODEC_SELFTEST ||
+          msg->command == VISION_BADGE_RPC_CONVERSATION ||
+          msg->command == VISION_BADGE_RPC_AGORA ||
+          msg->command == VISION_BADGE_RPC_BATTERY ||
+          msg->command == VISION_BADGE_RPC_AUDIO_DIAGNOSTIC ||
+          msg->command == VISION_BADGE_RPC_CAMERA
+#ifdef CONFIG_CONTEST2026_441_POWER
+          || msg->command == VISION_BADGE_RPC_POWER
+#endif
+          );
 }
 
 #ifdef CONFIG_BK7258_AP_CORE
+#ifdef CONFIG_CONTEST2026_441_POWER
+static bool g_network_power_busy;
+bool vision_badge_power_network_idle(void)
+{
+  return !__atomic_load_n(&g_network_power_busy, __ATOMIC_ACQUIRE);
+}
+#endif
 static int vision_badge_network_worker(int argc, char *argv[])
 {
   int ret;
@@ -172,10 +229,27 @@ static int vision_badge_network_worker(int argc, char *argv[])
    * board bring-up, so the first user request does not pay that cost. */
   for (attempt = 0; attempt < 3; attempt++)
     {
+#ifdef CONFIG_CONTEST2026_441_POWER
+      if (!power_service_work_allowed()) break;
+#endif
       ret = mimo_http_prepare_session();
       if (ret == 0)
         {
           syslog(LOG_INFO, "VISION BADGE network session ready\n");
+#ifdef CONFIG_CONTEST2026_441_PRODUCT_STARTUP
+          if (power_service_work_allowed())
+            {
+              char detail[192];
+              ret = agora_service_command("camera-live-on", detail, sizeof(detail));
+              if (!ret && power_service_work_allowed())
+                ret = wake_service_command("start", detail, sizeof(detail));
+              syslog(ret < 0 ? LOG_WARNING : LOG_INFO,
+                     "VISION BADGE product startup camera/wake ret=%d; no RTC start requested\n", ret);
+            }
+#endif
+#ifdef CONFIG_CONTEST2026_441_POWER
+          __atomic_store_n(&g_network_power_busy, false, __ATOMIC_RELEASE);
+#endif
           return 0;
         }
 
@@ -186,6 +260,9 @@ static int vision_badge_network_worker(int argc, char *argv[])
     }
 
   syslog(LOG_ERR, "VISION BADGE network warmup failed\n");
+#ifdef CONFIG_CONTEST2026_441_POWER
+  __atomic_store_n(&g_network_power_busy, false, __ATOMIC_RELEASE);
+#endif
   return 0;
 }
 
@@ -218,6 +295,63 @@ static bool vision_badge_rpc_copy_result(char *destination,
 #endif
 
 #ifdef CONFIG_BK7258_AP_CORE
+static int vision_badge_battery_status(char *text, size_t capacity)
+{
+#ifdef CONFIG_BK7258_AIDK_BATTERY
+  struct file battery;
+  const char *step = "open";
+  const char *state_name;
+  int state = BATTERY_UNKNOWN;
+  int millivolts = 0;
+  int close_ret;
+  int ret;
+
+  ret = file_open(&battery, "/dev/bat0", O_RDONLY);
+  if (ret >= 0)
+    {
+      step = "state";
+      ret = file_ioctl(&battery, BATIOC_STATE, (unsigned long)&state);
+      if (ret >= 0)
+        {
+          step = "voltage";
+          ret = file_ioctl(&battery, BATIOC_GET_VOLTAGE,
+                           (unsigned long)&millivolts);
+        }
+
+      close_ret = file_close(&battery);
+      if (ret >= 0 && close_ret < 0)
+        {
+          step = "close";
+          ret = close_ret;
+        }
+    }
+
+  if (ret < 0)
+    {
+      snprintf(text, capacity, "battery: step=%s error=%d", step, ret);
+      return ret;
+    }
+
+  switch (state)
+    {
+      case BATTERY_DISCHARGING: state_name = "discharging"; break;
+      case BATTERY_CHARGING: state_name = "charging"; break;
+      case BATTERY_FULL: state_name = "full"; break;
+      default: state_name = "unknown"; break;
+    }
+
+  /* No fuel gauge or programmable charge controller is present.  Report
+   * the measured voltage and pin-derived state, not invented percentages.
+   */
+  snprintf(text, capacity, "battery: voltage=%d mV state=%s",
+           millivolts, state_name);
+  return 0;
+#else
+  snprintf(text, capacity, "battery: not enabled on AP");
+  return -ENOSYS;
+#endif
+}
+
 static int vision_badge_rpc_worker(int argc, char *argv[])
 {
   struct vision_badge_rpc_dev_s *priv = &g_vision_badge_rpc;
@@ -230,6 +364,24 @@ static int vision_badge_rpc_worker(int argc, char *argv[])
 
   (void)argc;
   (void)argv;
+
+#if defined(CONFIG_CONTEST2026_441_POWER) && defined(CONFIG_CONTEST2026_441_AGORA)
+  unsigned int volume_level;
+  ret = agora_control_volume_load(&volume_level);
+  if (!ret)
+    {
+      char action[24], detail[128];
+      if (volume_level) snprintf(action, sizeof(action), "volume %u", volume_level);
+      else snprintf(action, sizeof(action), "volume reset");
+      ret = vision_badge_audio_diagnostic(action, detail, sizeof(detail));
+    }
+  syslog(ret < 0 && ret != -ENOENT ? LOG_WARNING : LOG_INFO,
+         "vision_badge: volume restore ret=%d; absent/invalid storage keeps configured default\n", ret);
+#endif
+  char camera_status[128];
+  ret = camera_service_control("start", camera_status, sizeof(camera_status));
+  syslog(ret < 0 ? LOG_WARNING : LOG_INFO,
+         "vision_badge: camera startup ret=%d %s\n", ret, camera_status);
 
   for (;;)
     {
@@ -255,7 +407,181 @@ static int vision_badge_rpc_worker(int argc, char *argv[])
       response.generation = request.generation;
       response.sequence = request.sequence;
 
-      if (request.command == VISION_BADGE_RPC_PROVISION)
+#ifdef CONFIG_CONTEST2026_441_WAKE
+      /* Observation must not stop/restart MIC and camera owners. Mutating
+       * camera/power commands still pass through the exclusive drain gate. */
+      bool wake_exclusive=!(request.command==VISION_BADGE_RPC_BATTERY ||
+        (request.command==VISION_BADGE_RPC_CAMERA && !strcmp(request.prompt,"status")) ||
+#ifdef CONFIG_CONTEST2026_441_POWER
+        (request.command==VISION_BADGE_RPC_POWER && !strcmp(request.prompt,"status")) ||
+#endif
+        (request.command==VISION_BADGE_RPC_AUDIO_DIAGNOSTIC &&
+         (!strcmp(request.prompt,"volume") || !strncmp(request.prompt,"volume ",7))) ||
+        (request.command==VISION_BADGE_RPC_AGORA &&
+         (!strcmp(request.prompt,"status") || !strcmp(request.prompt,"stats") ||
+          !strcmp(request.prompt,"visionstats") || !strncmp(request.prompt,"wake-",5))));
+      int wake_admission=wake_service_rpc_begin(wake_exclusive);
+      if (wake_admission<0)
+        { ret=wake_admission; snprintf(response.text,sizeof(response.text),"wake: resource owner still draining or retained"); }
+      else
+#endif
+#ifdef CONFIG_CONTEST2026_441_POWER
+      if (request.command == VISION_BADGE_RPC_POWER)
+        ret = power_service_command(request.prompt, response.text, sizeof(response.text));
+      else if (!power_service_work_allowed() &&
+               request.command != VISION_BADGE_RPC_BATTERY &&
+               !(request.command == VISION_BADGE_RPC_AGORA &&
+                 (!strcmp(request.prompt, "status") || !strcmp(request.prompt, "visionstats") ||
+                  !strcmp(request.prompt, "stats") || !strcmp(request.prompt, "stop")
+#ifdef CONFIG_CONTEST2026_441_WAKE
+                  || !strcmp(request.prompt,"wake-status") || !strcmp(request.prompt,"wake-stop")
+#endif
+                  )))
+        {
+          ret = -ESHUTDOWN;
+          snprintf(response.text, sizeof(response.text), "power: new work blocked; use power status/resume");
+        }
+      else
+#endif
+      if (request.command == VISION_BADGE_RPC_AGORA)
+        {
+#ifdef CONFIG_CONTEST2026_441_AGORA
+          if (!strcmp(request.prompt, "config"))
+            {
+              /* Keep the existing wire size: JSON uses the 256-byte text
+               * field rather than overflowing the 160-byte prompt field. */
+              char action[VISION_BADGE_RPC_TEXT_SIZE + 7];
+              snprintf(action, sizeof(action), "config %s", request.text);
+              ret = agora_service_command(action, response.text,
+                                          sizeof(response.text));
+              explicit_bzero(action, sizeof(action));
+            }
+          else
+            {
+              ret = agora_service_command(request.prompt, response.text,
+                                          sizeof(response.text));
+            }
+#else
+          ret = -ENOSYS;
+#endif
+        }
+      else if (request.command == VISION_BADGE_RPC_CAMERA)
+        {
+          struct vision_badge_image_s settled = {0};
+          struct timespec ts;
+          bool compare = !strcmp(request.prompt, "compare");
+          clock_gettime(CLOCK_MONOTONIC, &ts);
+          uint64_t started = (uint64_t)ts.tv_sec * 1000u + ts.tv_nsec / 1000000u;
+          memset(&image, 0, sizeof(image));
+          image.capacity = CONFIG_CONTEST2026_441_VISION_BADGE_JPEG_BUFFER_SIZE;
+          if (!strcmp(request.prompt, "start") || !strcmp(request.prompt, "stop") ||
+              !strcmp(request.prompt, "status"))
+            {
+              ret = camera_service_control(request.prompt, response.text, sizeof(response.text));
+              if (ret >= 0) response.stage = VISION_BADGE_STAGE_DONE;
+            }
+          else if (strcmp(request.prompt, "capture") && strcmp(request.prompt, "scene") && !compare)
+            ret = -EINVAL;
+          else
+            {
+              image.data = malloc(image.capacity);
+              settled.capacity = image.capacity;
+              if (compare) settled.data = malloc(settled.capacity);
+              response.stage = VISION_BADGE_STAGE_CAPTURE;
+              feedback_service_activity(VISION_BADGE_STAGE_CAPTURE);
+              ret = !image.data || (compare && !settled.data) ? -ENOMEM :
+                    compare ? camera_service_capture_pair(&image, &settled) :
+                              camera_service_capture(&image);
+              if (ret >= 0 && (!strcmp(request.prompt, "scene") || compare))
+                {
+                  response.stage = VISION_BADGE_STAGE_QUERY;
+                  feedback_service_activity(VISION_BADGE_STAGE_QUERY);
+#ifdef CONFIG_CONTEST2026_441_AGORA
+                  ret = compare ? agora_control_capture(&image, response.text,
+                                                         sizeof(response.text)) :
+                                  agora_control_scene(&image, response.text,
+                                                       sizeof(response.text));
+                  if (ret >= 0 && compare)
+                    ret = agora_control_capture(&settled, response.text,
+                                               sizeof(response.text));
+#else
+                  ret = -ENOSYS;
+#endif
+                }
+              else if (ret >= 0)
+                snprintf(response.text, sizeof(response.text),
+                         "JPEG: %ux%u, %lu bytes; capture only, no upload",
+                         image.width, image.height, (unsigned long)image.size);
+              if (ret >= 0) response.stage = VISION_BADGE_STAGE_DONE;
+              free(image.data);
+              free(settled.data);
+              feedback_service_activity(ret < 0 ? VISION_BADGE_STAGE_ERROR :
+                                                  VISION_BADGE_STAGE_DONE);
+            }
+          clock_gettime(CLOCK_MONOTONIC, &ts);
+          uint64_t ended = (uint64_t)ts.tv_sec * 1000u + ts.tv_nsec / 1000000u;
+          syslog(ret < 0 ? LOG_ERR : LOG_INFO,
+                 "vision_badge: camera RPC total=%lu ms ret=%d\n",
+                 (unsigned long)(ended - started), ret);
+        }
+      else if (request.command == VISION_BADGE_RPC_BATTERY)
+        {
+          ret = vision_badge_battery_status(response.text,
+                                            sizeof(response.text));
+        }
+      else if (request.command == VISION_BADGE_RPC_AUDIO_DIAGNOSTIC)
+        {
+          ret = vision_badge_audio_diagnostic(request.prompt, response.text,
+                                              sizeof(response.text));
+#if defined(CONFIG_CONTEST2026_441_POWER) && defined(CONFIG_CONTEST2026_441_AGORA)
+          if (!ret && !strncmp(request.prompt, "volume ", 7))
+            {
+              ret = agora_control_volume_save(audio_service_volume_level());
+              size_t used = strlen(response.text);
+              snprintf(response.text + used, sizeof(response.text) - used,
+                       "; persist=%d (RAM selection remains on write failure)", ret);
+            }
+#endif
+        }
+      else if (request.command == VISION_BADGE_RPC_CONVERSATION)
+        {
+#ifdef CONFIG_CONTEST2026_441_AGORA
+          ret = agora_service_command(request.prompt, response.text,
+                                      sizeof(response.text));
+#elif defined(CONFIG_CONTEST2026_441_XIAOZHI)
+          ret = xiaozhi_conversation_command(request.prompt, response.text,
+                                             sizeof(response.text));
+#else
+          ret = -ENOSYS;
+#endif
+        }
+      else if (request.command == VISION_BADGE_RPC_CODEC_SELFTEST)
+        {
+#ifdef CONFIG_CONTEST2026_441_XIAOZHI
+          ret = xiaozhi_codec_selftest(response.text, sizeof(response.text));
+#else
+          ret = -ENOSYS;
+#endif
+        }
+      else if (request.command == VISION_BADGE_RPC_AUDIO_LOOPBACK)
+        {
+          unsigned int seconds;
+          unsigned int volume;
+          char extra;
+
+          if (sscanf(request.prompt, "%u %u %c", &seconds,
+                     &volume, &extra) != 2)
+            {
+              ret = -EINVAL;
+            }
+          else
+            {
+              ret = audio_service_loopback(seconds, volume,
+                                             response.text,
+                                             sizeof(response.text));
+            }
+        }
+      else if (request.command == VISION_BADGE_RPC_PROVISION)
         {
           size_t ssid_length = strnlen(request.prompt,
                                        sizeof(request.prompt));
@@ -314,6 +640,9 @@ static int vision_badge_rpc_worker(int argc, char *argv[])
           free(result.text);
         }
 
+#ifdef CONFIG_CONTEST2026_441_WAKE
+      wake_service_rpc_end(wake_exclusive);
+#endif
       response.status = ret;
       memset(&request, 0, sizeof(request));
       syslog(ret < 0 ? LOG_ERR : LOG_INFO,
@@ -329,55 +658,143 @@ static int vision_badge_rpc_worker(int argc, char *argv[])
 #if !defined(CONFIG_BK7258_AP_CORE) && defined(CONFIG_BK7258_AIDK_BUTTONS)
 static volatile bool g_vision_badge_button_worker_started;
 
+#ifdef CONFIG_CONTEST2026_441_POWER
+static unsigned int g_key_pending;
+static bool g_key_busy;
+static sem_t g_key_wake = SEM_INITIALIZER(0);
+static int g_key_action_pid = -1;
+
+static void vision_badge_button_queue(unsigned int action)
+{
+  unsigned int expected = 0;
+  if (action == 4u)
+    __atomic_store_n(&g_key_pending, action, __ATOMIC_RELEASE);
+  else if (__atomic_load_n(&g_key_busy, __ATOMIC_ACQUIRE) ||
+           !__atomic_compare_exchange_n(&g_key_pending, &expected, action, false,
+                                         __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+    return; /* No stale photo/voice replay while a previous RPC is in flight. */
+  nxsem_post(&g_key_wake);
+}
+
+static int vision_badge_button_action_worker(int argc, char *argv[])
+{
+  (void)argc; (void)argv;
+  for (;;)
+    {
+      (void)nxsem_wait_uninterruptible(&g_key_wake);
+      __atomic_store_n(&g_key_busy, true, __ATOMIC_RELEASE);
+      unsigned int action = __atomic_exchange_n(&g_key_pending, 0u, __ATOMIC_ACQ_REL);
+      if (action)
+        {
+          struct vision_badge_rpc_result_s result = {0};
+          int ret = action == 4u ? vision_badge_rpc_power("toggle", &result) :
+                    action == 2u ? vision_badge_rpc_conversation("toggle", &result) :
+                    vision_badge_rpc_audio_diagnostic(action == 1u ? "volume down" : "volume up", &result);
+          syslog(ret < 0 || result.status < 0 ? LOG_ERR : LOG_INFO,
+                 "VISION BADGE key action=%u transport=%d status=%d %s\n",
+                 action, ret, result.status, result.text);
+        }
+      __atomic_store_n(&g_key_busy, false, __ATOMIC_RELEASE);
+    }
+  return 0;
+}
+#endif
+
+static void vision_badge_button_event(unsigned int key, unsigned long held_ms)
+{
+#ifdef CONFIG_CONTEST2026_441_POWER
+  if (key == BUTTON_K2 && held_ms >= 3000)
+    { vision_badge_button_queue(4u); return; }
+  if (held_ms >= 50 && held_ms < 3000 &&
+      (key == BUTTON_K1 || key == BUTTON_K2 || key == BUTTON_K3))
+    vision_badge_button_queue(key == BUTTON_K1 ? 1u : key == BUTTON_K2 ? 2u : 3u);
+#else
+  if (held_ms < 50 || held_ms >= 3000) return;
+  if (key != BUTTON_K1 && key != BUTTON_K2) return;
+  struct vision_badge_rpc_result_s result;
+  memset(&result, 0, sizeof(result));
+  syslog(LOG_INFO, "VISION BADGE %s short press; %s\n",
+         key == BUTTON_K1 ? "KEY1" : "KEY2",
+         key == BUTTON_K1 ? "scene capture" : "voice toggle");
+  int ret = key == BUTTON_K1 ? vision_badge_rpc_camera("scene", &result) :
+                              vision_badge_rpc_conversation("toggle", &result);
+  syslog(ret < 0 ? LOG_ERR : LOG_INFO,
+         "VISION BADGE %s request status=%d stage=%d\n",
+         key == BUTTON_K1 ? "KEY1" : "KEY2",
+         ret < 0 ? ret : result.status, ret < 0 ? -1 : result.stage);
+  if (ret >= 0 && result.status >= 0 && result.text[0] != '\0')
+    {
+      printf("vision_badge: %s\n", result.text);
+      fflush(stdout);
+    }
+#endif
+}
+
 static int vision_badge_button_worker(int argc, char *argv[])
 {
-  const char prompt[] = "请简短描述画面中能确认的内容";
-  bool previous = false;
-  bool initialized = false;
+#ifdef CONFIG_CONTEST2026_441_POWER
+  unsigned int active = 0;
+  bool initialized = false, blocked = false, long_fired = false;
   clock_t pressed_at = 0;
+  (void)argc; (void)argv;
+  for (;;)
+    {
+      unsigned int pressed = board_buttons() & (BUTTON_K1 | BUTTON_K2 | BUTTON_K3);
+      if (!initialized)
+        { initialized = true; blocked = pressed != 0; }
+      if (blocked)
+        { if (!pressed) blocked = false; }
+      else if (pressed && (pressed & (pressed - 1)))
+        { blocked = true; active = 0; }
+      else if (active && pressed != active)
+        {
+          if (!pressed && !long_fired)
+            vision_badge_button_event(active, (unsigned long)TICK2MSEC(clock_systime_ticks() - pressed_at));
+          else if (pressed) blocked = true;
+          active = 0;
+        }
+      else if (!active && pressed)
+        { active = pressed; pressed_at = clock_systime_ticks(); long_fired = false; }
+      else if (active == BUTTON_K2 && !long_fired &&
+               (unsigned long)TICK2MSEC(clock_systime_ticks() - pressed_at) >= 3000)
+        { long_fired = true; vision_badge_button_event(BUTTON_K2, 3000); }
+      nxsig_usleep(50000);
+    }
+  return 0;
+#else
+  unsigned int previous = 0;
+  bool initialized = false;
+  clock_t pressed_at[2] = {0, 0};
+  const unsigned int keys[2] = {BUTTON_K1, BUTTON_K2};
 
   (void)argc;
   (void)argv;
 
   for (;;)
     {
-      bool pressed = (board_buttons() & BUTTON_K1) != 0;
+      unsigned int pressed = board_buttons() & (BUTTON_K1 | BUTTON_K2);
 
       if (!initialized)
         {
           previous = pressed;
           initialized = true;
         }
-      else if (pressed && !previous)
+      else if (pressed == (BUTTON_K1 | BUTTON_K2))
+        { pressed_at[0] = pressed_at[1] = 0; }
+      else
         {
-          pressed_at = clock_systime_ticks();
-        }
-      else if (!pressed && previous && pressed_at != 0)
-        {
-          unsigned long held_ms =
-            (unsigned long)TICK2MSEC(clock_systime_ticks() - pressed_at);
-
-          if (held_ms >= 50 && held_ms < 3000)
+          for (unsigned int i = 0; i < 2; i++)
             {
-              struct vision_badge_rpc_result_s result;
-              int ret;
-
-              memset(&result, 0, sizeof(result));
-              syslog(LOG_INFO,
-                     "VISION BADGE KEY1 short press; starting capture\n");
-              ret = vision_badge_rpc_query(prompt, 120000, &result);
-              syslog(ret < 0 ? LOG_ERR : LOG_INFO,
-                     "VISION BADGE KEY1 request status=%d stage=%d\n",
-                     ret < 0 ? ret : result.status,
-                     ret < 0 ? -1 : result.stage);
-              if (ret >= 0 && result.status >= 0 && result.text[0] != '\0')
+              if ((pressed & keys[i]) && !(previous & keys[i]))
+                pressed_at[i] = clock_systime_ticks();
+              else if (!(pressed & keys[i]) && (previous & keys[i]) && pressed_at[i])
                 {
-                  printf("vision_badge: %s\n", result.text);
-                  fflush(stdout);
+                  unsigned long held_ms = (unsigned long)
+                    TICK2MSEC(clock_systime_ticks() - pressed_at[i]);
+                  pressed_at[i] = 0;
+                  vision_badge_button_event(keys[i], held_ms);
                 }
             }
-
-          pressed_at = 0;
         }
 
       previous = pressed;
@@ -385,6 +802,7 @@ static int vision_badge_button_worker(int argc, char *argv[])
     }
 
   return 0;
+#endif
 }
 #endif
 
@@ -407,7 +825,18 @@ static int vision_badge_rpc_endpoint_callback(
 
 #ifdef CONFIG_BK7258_AP_CORE
   if (msg->command == VISION_BADGE_RPC_QUERY ||
-      msg->command == VISION_BADGE_RPC_PROVISION)
+      msg->command == VISION_BADGE_RPC_PROVISION ||
+      msg->command == VISION_BADGE_RPC_AUDIO_LOOPBACK ||
+      msg->command == VISION_BADGE_RPC_CODEC_SELFTEST ||
+      msg->command == VISION_BADGE_RPC_CONVERSATION ||
+      msg->command == VISION_BADGE_RPC_AGORA ||
+      msg->command == VISION_BADGE_RPC_BATTERY ||
+      msg->command == VISION_BADGE_RPC_AUDIO_DIAGNOSTIC ||
+      msg->command == VISION_BADGE_RPC_CAMERA
+#ifdef CONFIG_CONTEST2026_441_POWER
+      || msg->command == VISION_BADGE_RPC_POWER
+#endif
+      )
     {
       if (__atomic_load_n(&priv->pending, __ATOMIC_ACQUIRE))
         {
@@ -582,11 +1011,21 @@ int vision_badge_rpc_initialize(void)
 
   if (ret >= 0)
     {
+#ifdef CONFIG_CONTEST2026_441_POWER
+      __atomic_store_n(&g_network_power_busy, true, __ATOMIC_RELEASE);
+      int pid = power_service_work_allowed() ?
+        kthread_create("vision-net", VISION_BADGE_NET_PRIORITY,
+                       VISION_BADGE_NET_STACKSIZE, vision_badge_network_worker, NULL) : -ESHUTDOWN;
+#else
       int pid = kthread_create("vision-net", VISION_BADGE_NET_PRIORITY,
                                VISION_BADGE_NET_STACKSIZE,
                                vision_badge_network_worker, NULL);
+#endif
       if (pid < 0)
         {
+#ifdef CONFIG_CONTEST2026_441_POWER
+          __atomic_store_n(&g_network_power_busy, false, __ATOMIC_RELEASE);
+#endif
           syslog(LOG_WARNING,
                  "VISION BADGE network warmup start failed: %d\n", pid);
         }
@@ -634,6 +1073,16 @@ int vision_badge_rpc_buttons_start(void)
       return 0;
     }
 
+#ifdef CONFIG_CONTEST2026_441_POWER
+  if (g_key_action_pid < 0)
+    g_key_action_pid = kthread_create("vision-key-rpc", 100, 4096,
+                                      vision_badge_button_action_worker, NULL);
+  if (g_key_action_pid < 0)
+    {
+      __atomic_store_n(&g_vision_badge_button_worker_started, false, __ATOMIC_RELEASE);
+      return g_key_action_pid;
+    }
+#endif
   pid = kthread_create("vision-key", 100, 4096,
                        vision_badge_button_worker, NULL);
   if (pid < 0)
@@ -665,13 +1114,30 @@ static int vision_badge_rpc_exchange(enum vision_badge_rpc_command_e command,
   if (prompt == NULL || prompt[0] == '\0' || result == NULL ||
       timeout_ms == 0 ||
       (command != VISION_BADGE_RPC_QUERY &&
-       command != VISION_BADGE_RPC_PROVISION))
+       command != VISION_BADGE_RPC_PROVISION &&
+       command != VISION_BADGE_RPC_AUDIO_LOOPBACK &&
+       command != VISION_BADGE_RPC_CODEC_SELFTEST &&
+       command != VISION_BADGE_RPC_CONVERSATION &&
+       command != VISION_BADGE_RPC_AGORA &&
+       command != VISION_BADGE_RPC_BATTERY &&
+       command != VISION_BADGE_RPC_AUDIO_DIAGNOSTIC &&
+       command != VISION_BADGE_RPC_CAMERA
+#ifdef CONFIG_CONTEST2026_441_POWER
+       && command != VISION_BADGE_RPC_POWER
+#endif
+       ))
     {
       return -EINVAL;
     }
 
-  if (command == VISION_BADGE_RPC_QUERY &&
+  if (command != VISION_BADGE_RPC_PROVISION &&
       strlen(prompt) >= VISION_BADGE_RPC_PROMPT_SIZE)
+    {
+      return -E2BIG;
+    }
+
+  if (command == VISION_BADGE_RPC_AGORA && text != NULL &&
+      strlen(text) >= VISION_BADGE_RPC_TEXT_SIZE)
     {
       return -E2BIG;
     }
@@ -725,6 +1191,10 @@ static int vision_badge_rpc_exchange(enum vision_badge_rpc_command_e command,
   else
     {
       strncpy(request.prompt, prompt, sizeof(request.prompt) - 1);
+      if (command == VISION_BADGE_RPC_AGORA && text != NULL)
+        {
+          strncpy(request.text, text, sizeof(request.text) - 1);
+        }
     }
   priv->waiting_sequence = request.sequence;
   priv->reply_valid = false;
@@ -765,11 +1235,84 @@ out:
   return ret;
 }
 
+#ifdef CONFIG_CONTEST2026_441_POWER
+int vision_badge_rpc_power(const char *action,
+                           struct vision_badge_rpc_result_s *result)
+{
+  if (!action || (strcmp(action, "status") && strcmp(action, "quiet") &&
+      strcmp(action, "prepare") && strcmp(action, "resume") && strcmp(action, "off") && strcmp(action, "toggle")))
+    return -EINVAL;
+  return vision_badge_rpc_exchange(VISION_BADGE_RPC_POWER, action, NULL, 25000, result);
+}
+#endif
+
+int vision_badge_rpc_battery(struct vision_badge_rpc_result_s *result)
+{
+  return vision_badge_rpc_exchange(VISION_BADGE_RPC_BATTERY, "status", NULL,
+                                   15000, result);
+}
+
+int vision_badge_rpc_audio_diagnostic(const char *action,
+                                      struct vision_badge_rpc_result_s *result)
+{
+  return vision_badge_rpc_exchange(VISION_BADGE_RPC_AUDIO_DIAGNOSTIC,
+                                   action, NULL, 15000, result);
+}
+
+int vision_badge_rpc_camera(const char *action,
+                            struct vision_badge_rpc_result_s *result)
+{
+  return vision_badge_rpc_exchange(VISION_BADGE_RPC_CAMERA,
+                                   action, NULL, 60000, result);
+}
+
 int vision_badge_rpc_query(const char *prompt, unsigned int timeout_ms,
                            struct vision_badge_rpc_result_s *result)
 {
   return vision_badge_rpc_exchange(VISION_BADGE_RPC_QUERY, prompt, NULL,
                                    timeout_ms, result);
+}
+
+int vision_badge_rpc_conversation(const char *action,
+                                  struct vision_badge_rpc_result_s *result)
+{
+  return vision_badge_rpc_exchange(VISION_BADGE_RPC_CONVERSATION,
+                                   action, NULL, 5000, result);
+}
+
+int vision_badge_rpc_agora(const char *action,
+                           struct vision_badge_rpc_result_s *result)
+{
+  if (action != NULL && !strncmp(action, "config ", 7))
+    {
+      return vision_badge_rpc_exchange(VISION_BADGE_RPC_AGORA,
+                                       "config", action + 7, 15000, result);
+    }
+
+  return vision_badge_rpc_exchange(VISION_BADGE_RPC_AGORA,
+                                   action, NULL, 15000, result);
+}
+
+int vision_badge_rpc_codec_selftest(struct vision_badge_rpc_result_s *result)
+{
+  return vision_badge_rpc_exchange(VISION_BADGE_RPC_CODEC_SELFTEST,
+                                   "selftest", NULL, 30000, result);
+}
+
+int vision_badge_rpc_audio_loopback(unsigned int seconds,
+                                    unsigned int volume,
+                                    struct vision_badge_rpc_result_s *result)
+{
+  char prompt[32];
+
+  if (seconds < 1 || seconds > 5 || volume > 100)
+    {
+      return -EINVAL;
+    }
+
+  snprintf(prompt, sizeof(prompt), "%u %u", seconds, volume);
+  return vision_badge_rpc_exchange(VISION_BADGE_RPC_AUDIO_LOOPBACK,
+                                   prompt, NULL, 30000, result);
 }
 
 int vision_badge_rpc_provision(const char *ssid, const char *password,
